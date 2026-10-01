@@ -17,15 +17,26 @@ public static class BrowserFocus
         }
         // 2) Shell window registry (works where the shell exposes browser tabs).
         try { if (FocusShellTab()) return true; } catch { }
-        // 3) Background tab: use the browser's own tab-search popup —
-        //    Ctrl+Shift+A, type the track title, Enter. Requires foreground
-        //    ownership so keystrokes can never land in another application.
+        // 3) Background tab: tab-search popup per window — Ctrl+Shift+A, type
+        //    "title artist", Enter, then verify the window title changed. Try
+        //    every window so multiple profiles/windows are all covered.
         if (!string.IsNullOrWhiteSpace(trackTitle))
         {
-            try { if (FocusViaTabSearch(windows[0], trackTitle)) return true; } catch { }
+            foreach (var hwnd in windows)
+            {
+                try { if (FocusViaTabSearch(hwnd, trackTitle, artist)) return true; } catch { }
+            }
         }
-        // 4) Last resort: bring the browser forward as-is.
+        // 4) Last resort: bring the first browser window forward as-is.
         return Focus(windows[0]);
+    }
+
+    public static string BuildSearchQuery(string trackTitle, string? artist)
+    {
+        if (!string.IsNullOrWhiteSpace(artist) &&
+            !trackTitle.Contains(artist, StringComparison.OrdinalIgnoreCase))
+            return trackTitle + " " + artist;
+        return trackTitle;
     }
 
     public static bool TabNameMatches(string? trackTitle, string? artist, string? tabName)
@@ -42,7 +53,7 @@ public static class BrowserFocus
         return false;
     }
 
-    private static bool FocusViaTabSearch(IntPtr hwnd, string trackTitle)
+    private static bool FocusViaTabSearch(IntPtr hwnd, string trackTitle, string? artist)
     {
         if (IsIconic(hwnd))
             ShowWindow(hwnd, 9 /*SW_RESTORE*/);
@@ -69,9 +80,10 @@ public static class BrowserFocus
         SendVk(0x11, false);
         Thread.Sleep(220);
 
-        // Type the track title into the auto-focused search box.
+        // Type "title artist" into the auto-focused search box.
+        var query = BuildSearchQuery(trackTitle, artist);
         var typed = 0;
-        foreach (var ch in trackTitle)
+        foreach (var ch in query)
         {
             if (typed >= 60) break;
             if (char.IsControl(ch)) continue;
@@ -82,11 +94,23 @@ public static class BrowserFocus
             return false;
         Thread.Sleep(180);
 
-        // Enter → activate the top match.
+        // Enter → activate the top match, then verify the window actually
+        // switched to the track's tab before claiming success.
         SendVk(0x0D, true);
         SendVk(0x0D, false);
+        for (var waited = 0; waited < 700; waited += 25)
+        {
+            Thread.Sleep(25);
+            if (TabNameMatches(trackTitle, artist, GetTitle(hwnd)))
+                return true;
+        }
+
+        // No match in this window: dismiss the popup and let the caller
+        // try the next window.
+        SendVk(0x1B, true);
+        SendVk(0x1B, false);
         Thread.Sleep(120);
-        return true;
+        return false;
     }
 
     private static bool WaitForeground(IntPtr hwnd, int timeoutMs)

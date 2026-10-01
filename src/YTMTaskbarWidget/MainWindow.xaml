@@ -108,8 +108,15 @@
             </Border>
 
             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
-                <TextBlock x:Name="TitleText" Text="Nothing playing" Foreground="White"
-                           FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <Grid x:Name="TitleClip" ClipToBounds="True">
+                    <TextBlock x:Name="TitleText" Text="Nothing playing" Foreground="White"
+                               FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform x:Name="TitleShift" X="0"/>
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </Grid>
                 <TextBlock x:Name="LyricText" Text="" Foreground="#FF9A9A9A"
                            FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
             </StackPanel>

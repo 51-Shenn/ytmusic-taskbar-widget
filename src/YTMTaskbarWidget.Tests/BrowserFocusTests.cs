@@ -36,4 +36,20 @@ public sealed class BrowserFocusTests
     {
         Assert.True(BrowserFocus.TabNameMatches(null, "Gareth.T", "Gareth.T - YouTube Music"));
     }
+    [Fact]
+    public void SearchQuery_Combines_Title_And_Artist()
+    {
+        Assert.Equal("colors Gareth.T", BrowserFocus.BuildSearchQuery("colors", "Gareth.T"));
+    }
+    [Fact]
+    public void SearchQuery_Title_Already_Contains_Artist()
+    {
+        Assert.Equal("colors feat. Gareth.T", BrowserFocus.BuildSearchQuery("colors feat. Gareth.T", "Gareth.T"));
+    }
+    [Fact]
+    public void SearchQuery_No_Artist_Is_Title_Only()
+    {
+        Assert.Equal("colors", BrowserFocus.BuildSearchQuery("colors", null));
+        Assert.Equal("colors", BrowserFocus.BuildSearchQuery("colors", "  "));
+    }
 }

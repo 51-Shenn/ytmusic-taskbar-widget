@@ -29,6 +29,11 @@ public partial class MainWindow : Window
     private System.Windows.Controls.Border[] _waveBars = Array.Empty<System.Windows.Controls.Border>();
     private int _waveTick;
     private Native.WinEventDelegate? _winEventProc;
+    private double _titleNatural;
+    private bool _marqueeActive;
+    private bool _marqueePending;
+    private double _marqueeOffset;
+    private int _marqueeHoldMs;
     private static string OffsetFile =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -393,6 +398,7 @@ public partial class MainWindow : Window
             {
                 Log($"fetch FAILED title='{np.Title}' artist='{np.Artist}' err={ex.GetType().Name}: {ex.Message}");
             }
+            SetupMarquee();
         }
 
         var cur = LrcParser.CurrentLine(_lines, np.EffectivePosition);
@@ -404,7 +410,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private const string MusicNoteFallback = "-";
+    private const string NoLyricsDash = "-";
+    private const string LyricsPendingNote = "\u266B";
 
     private void UpdateLyricLine()
     {
@@ -413,15 +420,16 @@ public partial class MainWindow : Window
             return;
         if (_lines.Count == 0)
         {
-            // Playing with no lyrics available: show a dash instead of words.
-            LyricText.Text = MusicNoteFallback;
+            // No lyrics exist for this track: dash.
+            LyricText.Text = NoLyricsDash;
             return;
         }
         var pos = np.EffectivePosition;
         var idx = LrcParser.CurrentLineIndex(_lines, pos);
         if (idx < 0)
         {
-            LyricText.Text = MusicNoteFallback;
+            // Lyrics exist but none yet (intro): music note.
+            LyricText.Text = LyricsPendingNote;
             return;
         }
         var line = _lines[idx];
@@ -446,6 +454,68 @@ public partial class MainWindow : Window
     private static readonly System.Windows.Media.SolidColorBrush SungBrush = CreateFrozenBrush(0xFF, 0x33, 0x55);
 
     private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateFrozenBrush(0x9A, 0x9A, 0x9A);
+
+    private void SetupMarquee()
+    {
+        _marqueeActive = false;
+        _marqueePending = false;
+        _marqueeOffset = 0;
+        _marqueeHoldMs = 0;
+        TitleShift.X = 0;
+        TitleText.TextTrimming = TextTrimming.None;
+        TitleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        _titleNatural = TitleText.DesiredSize.Width;
+        var avail = TitleClip.ActualWidth;
+        if (avail <= 0)
+        {
+            // Not laid out yet — retry on the next timer tick.
+            _marqueePending = true;
+            return;
+        }
+        if (_titleNatural > avail + 0.5)
+        {
+            _marqueeActive = true;
+            return;
+        }
+        // Fits: static with ellipsis as a safety net.
+        TitleText.TextTrimming = TextTrimming.CharacterEllipsis;
+    }
+
+    private void UpdateMarquee()
+    {
+        if (_marqueePending)
+        {
+            SetupMarquee();
+            if (_marqueePending)
+                return;
+        }
+        if (!_marqueeActive)
+            return;
+        if (_marqueeHoldMs > 0)
+        {
+            // Dwell at the end, then loop back to the start.
+            _marqueeHoldMs -= 150;
+            if (_marqueeHoldMs <= 0)
+            {
+                _marqueeOffset = 0;
+                TitleShift.X = 0;
+            }
+            return;
+        }
+        var avail = TitleClip.ActualWidth;
+        var max = _titleNatural - avail + 24;
+        if (avail <= 0 || max <= 0)
+            return;
+        _marqueeOffset += 9; // 60 px/s at the 150ms tick
+        if (_marqueeOffset >= max)
+        {
+            _marqueeOffset = max;
+            TitleShift.X = -max;
+            _marqueeHoldMs = 2500;
+            return;
+        }
+        TitleShift.X = -_marqueeOffset;
+    }
 
     private static System.Windows.Media.SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
     {
