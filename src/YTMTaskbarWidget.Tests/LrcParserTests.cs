@@ -23,4 +23,61 @@ public sealed class LrcParserTests
         Assert.Single(lines);
         Assert.Equal("hi", lines[0].Text);
     }
+    [Fact]
+    public void Parses_Single_Digit_Fraction()
+    {
+        var lines = LrcParser.Parse("[00:10.5]hello\n");
+        Assert.Single(lines);
+        Assert.Equal(TimeSpan.FromMilliseconds(10500), lines[0].Timestamp);
+        Assert.Equal("hello", lines[0].Text);
+    }
+    [Fact]
+    public void Parses_Repeated_Timestamps()
+    {
+        var lines = LrcParser.Parse("[00:10.00][00:20.00]same text\n");
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(TimeSpan.FromSeconds(10), lines[0].Timestamp);
+        Assert.Equal(TimeSpan.FromSeconds(20), lines[1].Timestamp);
+        Assert.Equal("same text", lines[0].Text);
+        Assert.Equal("same text", lines[1].Text);
+    }
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Null_Or_Empty_Returns_Empty(string? input)
+    {
+        Assert.Empty(LrcParser.Parse(input));
+    }
+    [Fact]
+    public void Invalid_Lines_Ignored()
+    {
+        const string lrc = "no timestamp\n[00:10.00]valid\n[ti:Title]\n[00:xx.00]bad\n";
+        var lines = LrcParser.Parse(lrc);
+        Assert.Single(lines);
+        Assert.Equal("valid", lines[0].Text);
+    }
+    [Fact]
+    public void Unsorted_Input_Sorted()
+    {
+        const string lrc = "[00:30.00]three\n[00:10.00]one\n[00:20.00]two\n";
+        var lines = LrcParser.Parse(lrc);
+        Assert.Equal(3, lines.Count);
+        Assert.Equal("one", lines[0].Text);
+        Assert.Equal("two", lines[1].Text);
+        Assert.Equal("three", lines[2].Text);
+    }
+    [Fact]
+    public void CurrentLine_Before_First_Returns_Null()
+    {
+        var lines = LrcParser.Parse("[00:10.00]one\n[00:20.00]two\n");
+        Assert.Null(LrcParser.CurrentLine(lines, TimeSpan.FromSeconds(5)));
+    }
+    [Fact]
+    public void CurrentLine_Exact_Boundary_Returns_That_Line()
+    {
+        var lines = LrcParser.Parse("[00:10.00]one\n[00:20.00]two\n");
+        Assert.Equal("one", LrcParser.CurrentLine(lines, TimeSpan.FromSeconds(10)));
+        Assert.Equal("two", LrcParser.CurrentLine(lines, TimeSpan.FromSeconds(20)));
+    }
 }
