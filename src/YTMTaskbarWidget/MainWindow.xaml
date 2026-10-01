@@ -8,8 +8,8 @@
     <Window.Resources>
         <!-- Transparent circular icon button (prev / next) -->
         <Style x:Key="GlassIconButton" TargetType="Button">
-            <Setter Property="Width" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
             <Setter Property="Background" Value="#14FFFFFF"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -71,7 +71,8 @@
     <Border x:Name="DragZone" CornerRadius="14" Padding="0" Cursor="SizeAll"
             PreviewMouseLeftButtonDown="DragZone_PreviewMouseLeftButtonDown"
             PreviewMouseMove="DragZone_PreviewMouseMove"
-            PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp">
+            PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp"
+            PreviewMouseRightButtonDown="DragZone_PreviewMouseRightButtonDown">
         <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Color="#B2323232" Offset="0.0"/>

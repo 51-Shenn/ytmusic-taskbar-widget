@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private int _tickCount;
     private bool _dragging;
     private Point _dragGrabOffset;
+    private Point _downPos;
     private double _savedOffsetX;
     private static string OffsetFile =>
         Path.Combine(
@@ -75,6 +76,7 @@ public partial class MainWindow : Window
         if (IsOverButton(e.OriginalSource))
             return;
         _dragging = true;
+        _downPos = e.GetPosition(this);
         var cursor = PointToScreen(e.GetPosition(this));
         _dragGrabOffset = new Point(cursor.X - Left, cursor.Y - Top);
         DragZone.CaptureMouse();
@@ -96,15 +98,44 @@ public partial class MainWindow : Window
 
     private void DragZone_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_dragging)
-            return;
-        _dragging = false;
-        DragZone.ReleaseMouseCapture();
-        // Remember the offset from center so the spot survives restarts.
-        var area = SystemParameters.WorkArea;
-        _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
-        SaveOffset();
+        var wasDragging = _dragging;
+        var moved = wasDragging && (e.GetPosition(this) - _downPos).Length > 4;
+        if (_dragging)
+        {
+            _dragging = false;
+            DragZone.ReleaseMouseCapture();
+            // Remember the offset from center so the spot survives restarts.
+            var area = SystemParameters.WorkArea;
+            _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
+            SaveOffset();
+        }
+        // Plain left-click on the background (not a drag, not a button): open YTM.
+        if (!moved && !IsOverButton(e.OriginalSource))
+            OpenBrowser();
         e.Handled = true;
+    }
+
+    private void DragZone_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount >= 2)
+        {
+            Application.Current.Shutdown();
+            e.Handled = true;
+        }
+    }
+
+    private static void OpenBrowser()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://music.youtube.com")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
     }
 
     private static bool IsOverButton(object? source)
