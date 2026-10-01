@@ -104,7 +104,7 @@
 
             <!-- Dynamic-Island style soundwave (left of album art), centered on its axis -->
             <Grid Grid.Column="0" Width="18" Height="14" VerticalAlignment="Center"
-                  Margin="8,0,6,0" IsHitTestVisible="False">
+                  Margin="14,0,12,0" IsHitTestVisible="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Border x:Name="WaveBar0" Width="2" Height="2" CornerRadius="1"
                             Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>

@@ -6,7 +6,8 @@ public sealed record NowPlaying(
     byte[]? ThumbnailBytes,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus Status,
     TimeSpan Position,
-    DateTimeOffset LastUpdated)
+    DateTimeOffset LastUpdated,
+    double PlaybackRate = 1.0)
 {
     public TimeSpan EffectivePosition
     {
@@ -14,15 +15,15 @@ public sealed record NowPlaying(
         {
             if (Status != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                 return Position;
+            if (PlaybackRate <= 0)
+                return Position;
             var drift = DateTimeOffset.Now - LastUpdated;
             if (drift < TimeSpan.Zero)
                 return Position;
-            // SMTC sessions stop pushing fresh positions for long stretches (seek
-            // stalls, background tabs). Unbounded extrapolation ran lyric display
-            // ~20s ahead of the real song, so cap how far ahead we guess.
-            if (drift > TimeSpan.FromSeconds(3))
-                return Position + TimeSpan.FromSeconds(3);
-            return Position + drift;
+            // Chrome reports timeline position only every ~20-25s; between
+            // updates audio keeps advancing, so interpolate at playback rate.
+            // (Buffering status and rate==0 freeze us automatically.)
+            return Position + TimeSpan.FromTicks((long)(drift.Ticks * PlaybackRate));
         }
     }
 }
