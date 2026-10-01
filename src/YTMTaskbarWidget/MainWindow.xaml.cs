@@ -12,7 +12,9 @@ namespace YTMTaskbarWidget;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private readonly DispatcherTimer _lyricTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private List<LrcLine> _lines = new();
+    private YTMTaskbarWidget.Models.NowPlaying? _lastNp;
     private string _key = string.Empty;
     private bool _refreshing;
     private int _nullStreak;
@@ -48,14 +50,16 @@ public partial class MainWindow : Window
         MakeClickThrough();
         _timer.Tick += async (_, _) => await RefreshAsync();
         _timer.Start();
+        _lyricTimer.Tick += (_, _) => UpdateLyricLine();
+        _lyricTimer.Start();
         await RefreshAsync();
     }
 
     private void PlaceBottomCenter()
     {
         // Sit INSIDE the taskbar: WorkArea.Bottom is the taskbar's top edge,
-        // so center the 40px pill within the taskbar strip below it.
-        const double ww = 340, wh = 40;
+        // so center the 48px pill within the taskbar strip below it.
+        const double ww = 340, wh = 48;
         var area = SystemParameters.WorkArea;
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         Width = ww;
@@ -269,6 +273,7 @@ public partial class MainWindow : Window
             return;
         }
         _nullStreak = 0;
+        _lastNp = np;
 
         Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
@@ -304,6 +309,7 @@ public partial class MainWindow : Window
         {
             _key = key;
             _lines = new List<LrcLine>();
+            LyricText.Text = string.Empty;
             try
             {
                 var res = await App.Lyrics.GetAsync(np.Title, np.Artist, null);
@@ -318,13 +324,63 @@ public partial class MainWindow : Window
         }
 
         var cur = LrcParser.CurrentLine(_lines, np.EffectivePosition);
-        LyricText.Text = cur ?? string.Empty;
+        UpdateLyricLine();
         _tickCount++;
         if (_tickCount % 10 == 0)
         {
             PinTopmost();
             Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} eff={np.EffectivePosition} lines={_lines.Count} cur='{cur}'");
         }
+    }
+
+    private const string MusicNoteFallback = "\u266A";
+
+    private void UpdateLyricLine()
+    {
+        var np = _lastNp;
+        if (np is null || Visibility != Visibility.Visible)
+            return;
+        if (_lines.Count == 0)
+        {
+            // Playing with no lyrics available: show a music note instead of words.
+            LyricText.Text = MusicNoteFallback;
+            return;
+        }
+        var pos = np.EffectivePosition;
+        var idx = LrcParser.CurrentLineIndex(_lines, pos);
+        if (idx < 0)
+        {
+            LyricText.Text = MusicNoteFallback;
+            return;
+        }
+        var line = _lines[idx];
+        if (line.Words.Count == 0)
+        {
+            LyricText.Text = line.Text;
+            return;
+        }
+        // Karaoke: sung words white, upcoming words gray.
+        var sung = LrcParser.SungWordCount(line, pos);
+        LyricText.Inlines.Clear();
+        for (var i = 0; i < line.Words.Count; i++)
+        {
+            var run = new System.Windows.Documents.Run(line.Words[i].Text)
+            {
+                Foreground = i < sung
+                    ? System.Windows.Media.Brushes.White
+                    : UpcomingBrush
+            };
+            LyricText.Inlines.Add(run);
+        }
+    }
+
+    private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateUpcomingBrush();
+
+    private static System.Windows.Media.SolidColorBrush CreateUpcomingBrush()
+    {
+        var b = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0x9A, 0x9A));
+        b.Freeze();
+        return b;
     }
 
     private static void Log(string msg)

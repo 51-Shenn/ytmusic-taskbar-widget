@@ -80,4 +80,25 @@ public sealed class LrcParserTests
         Assert.Equal("one", LrcParser.CurrentLine(lines, TimeSpan.FromSeconds(10)));
         Assert.Equal("two", LrcParser.CurrentLine(lines, TimeSpan.FromSeconds(20)));
     }
+    [Fact]
+    public void Parses_Inline_Word_Tags_And_Strips_Them()
+    {
+        var lines = LrcParser.Parse("[00:10.00]<00:10.00>hel <00:11.00>lo\n");
+        Assert.Single(lines);
+        Assert.Equal("hel lo", lines[0].Text);
+        Assert.Equal(2, lines[0].Words.Count);
+        Assert.Equal(TimeSpan.FromSeconds(10), lines[0].Words[0].Timestamp);
+        Assert.Equal(TimeSpan.FromSeconds(11), lines[0].Words[1].Timestamp);
+        Assert.Equal(0, LrcParser.SungWordCount(lines[0], TimeSpan.FromSeconds(9)));
+        Assert.Equal(1, LrcParser.SungWordCount(lines[0], TimeSpan.FromSeconds(10.5)));
+        Assert.Equal(2, LrcParser.SungWordCount(lines[0], TimeSpan.FromSeconds(12)));
+        Assert.Equal(-1, LrcParser.CurrentLineIndex(lines, TimeSpan.FromSeconds(9)));
+    }
+    [Fact]
+    public void Plain_Lines_Have_No_Words()
+    {
+        var lines = LrcParser.Parse("[00:10.00]just text\n");
+        Assert.Single(lines);
+        Assert.Empty(lines[0].Words);
+    }
 }
