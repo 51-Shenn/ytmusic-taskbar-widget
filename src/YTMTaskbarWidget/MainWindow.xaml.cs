@@ -41,7 +41,6 @@ public partial class MainWindow : Window
         await App.Smtc.InitAsync();
         PlaceBottomCenter();
         MakeClickThrough();
-        EnableAcrylicBlur();
         _timer.Tick += async (_, _) => await RefreshAsync();
         _timer.Start();
         await RefreshAsync();
@@ -152,40 +151,6 @@ public partial class MainWindow : Window
         Native.SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
     }
 
-    private void EnableAcrylicBlur()
-    {
-        try
-        {
-            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero)
-                return;
-            var accent = new Native.AccentPolicy
-            {
-                AccentState = Native.ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                GradientColor = 0x99282828u
-            };
-            var data = new Native.WindowCompositionAttributeData
-            {
-                Attribute = Native.WCA_ACCENT_POLICY,
-                Data = Marshal.AllocHGlobal(Marshal.SizeOf(accent)),
-                SizeOfData = Marshal.SizeOf(accent)
-            };
-            try
-            {
-                Marshal.StructureToPtr(accent, data.Data, false);
-                Native.SetWindowCompositionAttribute(hwnd, ref data);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(data.Data);
-            }
-        }
-        catch
-        {
-            // Gradient fallback in XAML already looks glassy; ignore.
-        }
-    }
-
     private async Task RefreshAsync()
     {
         if (_refreshing)
@@ -221,7 +186,9 @@ public partial class MainWindow : Window
 
         Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
-        PlayBtn.Content = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "\uE103" : "\uE102";
+        var playing = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        PlayGlyph.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
+        PauseGlyph.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
 
         if (np.ThumbnailBytes is { Length: > 0 })
         {
@@ -286,33 +253,10 @@ public partial class MainWindow : Window
 
     private static class Native
     {
-        internal const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
-        internal const int WCA_ACCENT_POLICY = 19;
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct AccentPolicy
-        {
-            public int AccentState;
-            public int AccentFlags;
-            public uint GradientColor;
-            public int AnimationId;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct WindowCompositionAttributeData
-        {
-            public int Attribute;
-            public IntPtr Data;
-            public int SizeOfData;
-        }
-
         [DllImport("user32.dll")]
         internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         [DllImport("user32.dll")]
         internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("user32.dll")]
-        internal static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
     }
 }

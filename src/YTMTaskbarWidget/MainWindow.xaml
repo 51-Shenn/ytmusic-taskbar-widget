@@ -13,13 +13,11 @@
             <Setter Property="Background" Value="#14FFFFFF"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-            <Setter Property="FontSize" Value="11"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle" CornerRadius="16"
+                        <Border x:Name="Circle" CornerRadius="14"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="#28FFFFFF" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -43,13 +41,11 @@
             <Setter Property="Background" Value="#F2FFFFFF"/>
             <Setter Property="Foreground" Value="#FF1B1B1B"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle" CornerRadius="18"
+                        <Border x:Name="Circle" CornerRadius="16"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="#66FFFFFF" BorderThickness="1">
                             <Border.Effect>
@@ -117,9 +113,26 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="PrevBtn" Content="&#xE100;" Style="{StaticResource GlassIconButton}"/>
-                <Button x:Name="PlayBtn" Content="&#xE102;" Style="{StaticResource GlassPlayButton}" Margin="4,0"/>
-                <Button x:Name="NextBtn" Content="&#xE101;" Style="{StaticResource GlassIconButton}"/>
+                <Button x:Name="PrevBtn" Style="{StaticResource GlassIconButton}">
+                    <Path Data="M6 6h2v12H6V6zm3.5 6l8.5 6V6z" Fill="White"
+                          Width="14" Height="14" Stretch="Uniform"
+                          Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
+                </Button>
+                <Button x:Name="PlayBtn" Style="{StaticResource GlassPlayButton}" Margin="4,0">
+                    <Grid>
+                        <Path x:Name="PlayGlyph" Data="M8 5v14l11-7z" Fill="#FF1B1B1B"
+                              Width="16" Height="16" Stretch="Uniform"
+                              Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
+                        <Path x:Name="PauseGlyph" Data="M6 5h4v14H6zM14 5h4v14h-4z" Fill="#FF1B1B1B"
+                              Width="15" Height="15" Stretch="Uniform" Visibility="Collapsed"
+                              Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
+                    </Grid>
+                </Button>
+                <Button x:Name="NextBtn" Style="{StaticResource GlassIconButton}">
+                    <Path Data="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" Fill="White"
+                          Width="14" Height="14" Stretch="Uniform"
+                          Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
+                </Button>
             </StackPanel>
         </Grid>
     </Border>
