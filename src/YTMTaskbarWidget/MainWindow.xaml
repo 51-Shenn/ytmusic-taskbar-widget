@@ -97,7 +97,7 @@
         <Grid Margin="4,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="30"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
@@ -123,7 +123,7 @@
                 <Border.Clip>
                     <RectangleGeometry Rect="0,0,32,32" RadiusX="5" RadiusY="5"/>
                 </Border.Clip>
-                <Image x:Name="Thumb" Width="32" Height="32" Stretch="UniformToFill"/>
+                <Image x:Name="Thumb" Width="32" Height="32" Stretch="Uniform"/>
             </Border>
 
             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
