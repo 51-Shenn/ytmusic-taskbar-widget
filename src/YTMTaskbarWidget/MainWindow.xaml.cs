@@ -214,8 +214,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void OpenBrowser()
+    private void OpenBrowser()
     {
+        // Prefer the already-open YouTube Music tab (the one playing music)
+        // over spawning a new tab; only open a fresh one if we can't find it.
+        try
+        {
+            if (BrowserFocus.FocusYtmTab(App.Smtc.CurrentSessionAumid()))
+                return;
+        }
+        catch
+        {
+        }
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://music.youtube.com")

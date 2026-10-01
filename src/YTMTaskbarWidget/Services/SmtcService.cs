@@ -44,6 +44,10 @@ public sealed class SmtcService
         }
         return new NowPlaying(props.Title, props.Artist ?? string.Empty, thumb, info.PlaybackStatus, timeline.Position, timeline.LastUpdatedTime);
     }
+    public string? CurrentSessionAumid()
+    {
+        try { return PickSession()?.SourceAppUserModelId; } catch { return null; }
+    }
     public Task<bool> TogglePlayPauseAsync() => DoAsync(async s => await s.TryTogglePlayPauseAsync());
     public Task<bool> NextAsync() => DoAsync(async s => await s.TrySkipNextAsync());
     public Task<bool> PreviousAsync() => DoAsync(async s => await s.TrySkipPreviousAsync());
