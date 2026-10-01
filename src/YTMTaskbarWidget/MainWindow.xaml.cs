@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         await App.Smtc.InitAsync();
         PlaceBottomCenter();
         MakeClickThrough();
+        EnableAcrylicBlur();
         _timer.Tick += async (_, _) => await RefreshAsync();
         _timer.Start();
         await RefreshAsync();
@@ -36,8 +37,8 @@ public partial class MainWindow : Window
 
     private void PlaceBottomCenter()
     {
-        Left = (SystemParameters.PrimaryScreenWidth - 380) / 2;
-        Top = SystemParameters.PrimaryScreenHeight - 48;
+        Left = (SystemParameters.PrimaryScreenWidth - 400) / 2;
+        Top = SystemParameters.PrimaryScreenHeight - 52;
     }
 
     private void MakeClickThrough()
@@ -48,6 +49,40 @@ public partial class MainWindow : Window
         const int WS_EX_TOOLWINDOW = 0x00000080;
         var ex = Native.GetWindowLong(hwnd, GWL_EXSTYLE);
         Native.SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+    }
+
+    private void EnableAcrylicBlur()
+    {
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+                return;
+            var accent = new Native.AccentPolicy
+            {
+                AccentState = Native.ACCENT_ENABLE_ACRYLICBLURBEHIND,
+                GradientColor = 0x99282828u
+            };
+            var data = new Native.WindowCompositionAttributeData
+            {
+                Attribute = Native.WCA_ACCENT_POLICY,
+                Data = Marshal.AllocHGlobal(Marshal.SizeOf(accent)),
+                SizeOfData = Marshal.SizeOf(accent)
+            };
+            try
+            {
+                Marshal.StructureToPtr(accent, data.Data, false);
+                Native.SetWindowCompositionAttribute(hwnd, ref data);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(data.Data);
+            }
+        }
+        catch
+        {
+            // Gradient fallback in XAML already looks glassy; ignore.
+        }
     }
 
     private async Task RefreshAsync()
@@ -61,7 +96,7 @@ public partial class MainWindow : Window
 
         Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
-        PlayBtn.Content = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "||" : "▶";
+        PlayBtn.Content = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "\uE103" : "\uE102";
 
         if (np.ThumbnailBytes is { Length: > 0 })
         {
@@ -96,21 +131,61 @@ public partial class MainWindow : Window
                 var res = await App.Lyrics.GetAsync(np.Title, np.Artist, null);
                 if (res is not null)
                     _lines = res.Lines;
+                Log($"fetch title='{np.Title}' artist='{np.Artist}' lines={_lines.Count}");
             }
-            catch
+            catch (Exception ex)
             {
+                Log($"fetch FAILED title='{np.Title}' artist='{np.Artist}' err={ex.GetType().Name}: {ex.Message}");
             }
         }
 
-        LyricText.Text = LrcParser.CurrentLine(_lines, np.Position) ?? string.Empty;
+        var cur = LrcParser.CurrentLine(_lines, np.Position);
+        LyricText.Text = cur ?? string.Empty;
+        Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} lines={_lines.Count} cur='{cur}'");
+    }
+
+    private static void Log(string msg)
+    {
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(Path.GetTempPath(), "YTMWidget-debug.log"),
+                $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
+        }
+        catch
+        {
+        }
     }
 
     private static class Native
     {
+        internal const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+        internal const int WCA_ACCENT_POLICY = 19;
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct AccentPolicy
+        {
+            public int AccentState;
+            public int AccentFlags;
+            public uint GradientColor;
+            public int AnimationId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct WindowCompositionAttributeData
+        {
+            public int Attribute;
+            public IntPtr Data;
+            public int SizeOfData;
+        }
+
         [DllImport("user32.dll")]
         internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         [DllImport("user32.dll")]
         internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll")]
+        internal static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
     }
 }
