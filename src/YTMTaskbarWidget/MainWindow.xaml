@@ -8,6 +8,8 @@
     <Window.Resources>
         <!-- Transparent circular icon button (prev / next) -->
         <Style x:Key="GlassIconButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Background" Value="#14FFFFFF"/>
@@ -36,6 +38,8 @@
         </Style>
         <!-- Solid rounded play button -->
         <Style x:Key="GlassPlayButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="Background" Value="#F2FFFFFF"/>

@@ -18,8 +18,11 @@ public partial class MainWindow : Window
     private int _nullStreak;
     private int _tickCount;
     private bool _dragging;
+    private bool _dragArmed;
     private Point _dragGrabOffset;
     private Point _downPos;
+    private DateTime _lastClickTime = DateTime.MinValue;
+    private Point _lastClickPos;
     private double _savedOffsetX;
     private static string OffsetFile =>
         Path.Combine(
@@ -35,6 +38,7 @@ public partial class MainWindow : Window
         PlayBtn.Click += async (_, _) => await App.Smtc.TogglePlayPauseAsync();
         NextBtn.Click += async (_, _) => await App.Smtc.NextAsync();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => PlaceBottomCenter();
+        Deactivated += (_, _) => PinTopmost();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -73,20 +77,28 @@ public partial class MainWindow : Window
     private void DragZone_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         // Buttons keep their clicks — only start a drag from the pill background.
+        // NOTE: no mouse capture here — capturing on press breaks WPF's
+        // double-click tracking. Capture starts once real movement is seen.
         if (IsOverButton(e.OriginalSource))
             return;
         _dragging = true;
+        _dragArmed = false;
         _downPos = e.GetPosition(this);
         var cursor = PointToScreen(e.GetPosition(this));
         _dragGrabOffset = new Point(cursor.X - Left, cursor.Y - Top);
-        DragZone.CaptureMouse();
-        e.Handled = true;
     }
 
     private void DragZone_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!_dragging || e.LeftButton != MouseButtonState.Pressed)
             return;
+        if ((e.GetPosition(this) - _downPos).Length <= 4)
+            return;
+        if (!_dragArmed)
+        {
+            _dragArmed = true;
+            DragZone.CaptureMouse();
+        }
         var area = SystemParameters.WorkArea;
         var cursor = PointToScreen(e.GetPosition(this));
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
@@ -102,19 +114,37 @@ public partial class MainWindow : Window
         // hands off entirely so Button.Click fires normally.
         if (!_dragging && IsOverButton(e.OriginalSource))
             return;
-        var moved = _dragging && (e.GetPosition(this) - _downPos).Length > 4;
+        var moved = _dragging && _dragArmed;
         if (_dragging)
         {
             _dragging = false;
-            DragZone.ReleaseMouseCapture();
+            _dragArmed = false;
+            try { DragZone.ReleaseMouseCapture(); } catch { }
             // Remember the offset from center so the spot survives restarts.
             var area = SystemParameters.WorkArea;
             _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
             SaveOffset();
         }
         // Double left-click on the background (not a drag, not a button): open YTM.
-        if (!moved && e.ClickCount >= 2 && !IsOverButton(e.OriginalSource))
-            OpenBrowser();
+        // Tracked manually: mouse capture + handled tunneling make e.ClickCount unreliable.
+        if (!moved && !IsOverButton(e.OriginalSource))
+        {
+            var now = DateTime.UtcNow;
+            var pos = e.GetPosition(this);
+            var interval = (now - _lastClickTime).TotalMilliseconds;
+            var dist = (pos - _lastClickPos).Length;
+            const double doubleClickMs = 500;
+            if ((interval <= doubleClickMs && dist <= 4) || e.ClickCount >= 2)
+            {
+                _lastClickTime = DateTime.MinValue;
+                OpenBrowser();
+            }
+            else
+            {
+                _lastClickTime = now;
+                _lastClickPos = pos;
+            }
+        }
         e.Handled = true;
     }
 
@@ -187,6 +217,24 @@ public partial class MainWindow : Window
         const int WS_EX_TOOLWINDOW = 0x00000080;
         var ex = Native.GetWindowLong(hwnd, GWL_EXSTYLE);
         Native.SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+        PinTopmost();
+    }
+
+    private void PinTopmost()
+    {
+        // The taskbar is topmost too — re-assert our Z position whenever we
+        // lose activation and periodically, or we slide behind it and look "closed".
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+                return;
+            const uint SWP_NOMOVE = 0x0002, SWP_NOSIZE = 0x0001, SWP_NOACTIVATE = 0x0010;
+            Native.SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        catch
+        {
+        }
     }
 
     private async Task RefreshAsync()
@@ -273,7 +321,10 @@ public partial class MainWindow : Window
         LyricText.Text = cur ?? string.Empty;
         _tickCount++;
         if (_tickCount % 10 == 0)
+        {
+            PinTopmost();
             Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} eff={np.EffectivePosition} lines={_lines.Count} cur='{cur}'");
+        }
     }
 
     private static void Log(string msg)
@@ -296,5 +347,8 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")]
         internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll")]
+        internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     }
 }
