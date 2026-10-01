@@ -24,4 +24,15 @@ public sealed class LrclibClientTests
         var client = new LrclibClient(new HttpClient(new StubHandler("{}", HttpStatusCode.NotFound)));
         Assert.Null(await client.GetAsync("T", "A", null));
     }
+    [Fact] public async Task Returns_Null_On_Empty_Synced()
+    {
+        const string json = """{"id":1,"trackName":"T","artistName":"A","syncedLyrics":"","plainLyrics":"hi"}""";
+        var client = new LrclibClient(new HttpClient(new StubHandler(json)));
+        Assert.Null(await client.GetAsync("T", "A", null));
+    }
+    [Fact] public async Task Returns_Null_On_500()
+    {
+        var client = new LrclibClient(new HttpClient(new StubHandler("{}", HttpStatusCode.InternalServerError)));
+        Assert.Null(await client.GetAsync("T", "A", null));
+    }
 }
