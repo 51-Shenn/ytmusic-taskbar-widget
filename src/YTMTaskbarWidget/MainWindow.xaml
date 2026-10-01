@@ -1,0 +1,14 @@
+<Window x:Class="YTMTaskbarWidget.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="YTM Taskbar Widget" Height="48" Width="360"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="#D91E1E1E" Topmost="True" ShowInTaskbar="False"
+        ResizeMode="NoResize">
+    <Grid>
+        <TextBlock Text="YTM Taskbar Widget scaffold — SMTC + lyrics coming next"
+                   Foreground="White" FontSize="11"
+                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                   TextWrapping="Wrap" Margin="12,0" />
+    </Grid>
+</Window>
