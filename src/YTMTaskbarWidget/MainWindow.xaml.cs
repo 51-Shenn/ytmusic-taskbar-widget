@@ -58,8 +58,8 @@ public partial class MainWindow : Window
     private void PlaceBottomCenter()
     {
         // Sit INSIDE the taskbar: WorkArea.Bottom is the taskbar's top edge,
-        // so center the 48px pill within the taskbar strip below it.
-        const double ww = 340, wh = 48;
+        // so center the 46px pill within the taskbar strip below it.
+        const double ww = 340, wh = 46;
         var area = SystemParameters.WorkArea;
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         Width = ww;
