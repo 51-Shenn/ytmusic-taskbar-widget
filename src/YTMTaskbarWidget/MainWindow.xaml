@@ -71,8 +71,11 @@
         </Style>
     </Window.Resources>
 
-    <!-- Liquid glass pill (fits inside 48px taskbar) -->
-    <Border CornerRadius="14" Padding="0">
+    <!-- Liquid glass pill (fits inside 48px taskbar, draggable along it) -->
+    <Border x:Name="DragZone" CornerRadius="14" Padding="0" Cursor="SizeAll"
+            PreviewMouseLeftButtonDown="DragZone_PreviewMouseLeftButtonDown"
+            PreviewMouseMove="DragZone_PreviewMouseMove"
+            PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp">
         <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Color="#B2323232" Offset="0.0"/>

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Windows.Media.Control;
@@ -16,6 +17,14 @@ public partial class MainWindow : Window
     private bool _refreshing;
     private int _nullStreak;
     private int _tickCount;
+    private bool _dragging;
+    private Point _dragGrabOffset;
+    private double _savedOffsetX;
+    private static string OffsetFile =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "YTMTaskbarWidget",
+            "taskbar-offset.txt");
 
     public MainWindow()
     {
@@ -42,12 +51,94 @@ public partial class MainWindow : Window
     {
         // Fit INSIDE the 48px taskbar: use the work area (screen minus taskbar)
         // so the pill never overflows onto the desktop or cover tray icons.
+        // A user-dragged horizontal offset is restored on top of the centered spot.
         const double ww = 340, wh = 40;
         var area = SystemParameters.WorkArea;
         Width = ww;
         Height = wh;
-        Left = area.Left + (area.Width - ww) / 2;
+        LoadOffset();
+        Left = ClampLeft(area.Left + (area.Width - ww) / 2 + _savedOffsetX, area, ww);
         Top = area.Bottom - wh - 4;
+    }
+
+    private static double ClampLeft(double left, Rect area, double ww)
+    {
+        var min = area.Left + 4;
+        var max = area.Left + area.Width - ww - 4;
+        if (max < min)
+            return (min + Math.Max(max, area.Left)) / 2;
+        return Math.Min(Math.Max(left, min), max);
+    }
+
+    private void DragZone_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Buttons keep their clicks — only start a drag from the pill background.
+        if (IsOverButton(e.OriginalSource))
+            return;
+        _dragging = true;
+        var cursor = PointToScreen(e.GetPosition(this));
+        _dragGrabOffset = new Point(cursor.X - Left, cursor.Y - Top);
+        DragZone.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void DragZone_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_dragging || e.LeftButton != MouseButtonState.Pressed)
+            return;
+        var area = SystemParameters.WorkArea;
+        var cursor = PointToScreen(e.GetPosition(this));
+        // Lock vertically to the taskbar strip; let the user slide horizontally.
+        Left = ClampLeft(cursor.X - _dragGrabOffset.X, area, Width);
+        Top = area.Bottom - Height - 4;
+        e.Handled = true;
+    }
+
+    private void DragZone_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_dragging)
+            return;
+        _dragging = false;
+        DragZone.ReleaseMouseCapture();
+        // Remember the offset from center so the spot survives restarts.
+        var area = SystemParameters.WorkArea;
+        _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
+        SaveOffset();
+        e.Handled = true;
+    }
+
+    private static bool IsOverButton(object? source)
+    {
+        for (var d = source as DependencyObject; d is not null; d = LogicalTreeHelper.GetParent(d))
+        {
+            if (d is System.Windows.Controls.Button)
+                return true;
+        }
+        return false;
+    }
+
+    private void LoadOffset()
+    {
+        try
+        {
+            if (File.Exists(OffsetFile) && double.TryParse(File.ReadAllText(OffsetFile).Trim(), out var x))
+                _savedOffsetX = Math.Max(-2000, Math.Min(2000, x));
+        }
+        catch
+        {
+        }
+    }
+
+    private void SaveOffset()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(OffsetFile)!);
+            File.WriteAllText(OffsetFile, _savedOffsetX.ToString("F0"));
+        }
+        catch
+        {
+        }
     }
 
     private void MakeClickThrough()
