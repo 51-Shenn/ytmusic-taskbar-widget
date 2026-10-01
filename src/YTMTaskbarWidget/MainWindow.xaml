@@ -102,18 +102,18 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Dynamic-Island style soundwave (left of album art) -->
-            <Grid Grid.Column="0" Width="22" Height="18" VerticalAlignment="Center"
-                  Margin="4,0,0,0" IsHitTestVisible="False">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Center">
-                    <Border x:Name="WaveBar0" Width="3" Height="3" CornerRadius="1.5"
-                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
-                    <Border x:Name="WaveBar1" Width="3" Height="3" CornerRadius="1.5"
-                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
-                    <Border x:Name="WaveBar2" Width="3" Height="3" CornerRadius="1.5"
-                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
-                    <Border x:Name="WaveBar3" Width="3" Height="3" CornerRadius="1.5"
-                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
+            <!-- Dynamic-Island style soundwave (left of album art), centered on its axis -->
+            <Grid Grid.Column="0" Width="18" Height="14" VerticalAlignment="Center"
+                  Margin="8,0,6,0" IsHitTestVisible="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Border x:Name="WaveBar0" Width="2" Height="2" CornerRadius="1"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>
+                    <Border x:Name="WaveBar1" Width="2" Height="2" CornerRadius="1"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>
+                    <Border x:Name="WaveBar2" Width="2" Height="2" CornerRadius="1"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>
+                    <Border x:Name="WaveBar3" Width="2" Height="2" CornerRadius="1"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
 

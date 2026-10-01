@@ -100,9 +100,11 @@ public partial class MainWindow : Window
         _waveTick++;
         for (var i = 0; i < _waveBars.Length; i++)
         {
+            // Bars are center-anchored in XAML, so height changes move both
+            // ends around the horizontal midline instead of only the top.
             _waveBars[i].Height = playing
-                ? 3 + 11 * Math.Abs(Math.Sin(_waveTick * 0.45 + i * 1.1))
-                : 3;
+                ? 2 + 9 * Math.Abs(Math.Sin(_waveTick * 0.45 + i * 1.1))
+                : 2;
         }
     }
 
