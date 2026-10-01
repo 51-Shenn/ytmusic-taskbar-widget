@@ -216,11 +216,12 @@ public partial class MainWindow : Window
 
     private void OpenBrowser()
     {
-        // Prefer the already-open YouTube Music tab (the one playing music)
-        // over spawning a new tab; only open a fresh one if we can't find it.
+        // Prefer the already-open YouTube Music tab playing this track over
+        // spawning a new tab; only open a fresh one if we can't find it.
         try
         {
-            if (BrowserFocus.FocusYtmTab(App.Smtc.CurrentSessionAumid()))
+            var track = App.Smtc.CurrentTrack();
+            if (BrowserFocus.FocusYtmTab(track?.Title, track?.Artist, App.Smtc.CurrentSessionAumid()))
                 return;
         }
         catch
