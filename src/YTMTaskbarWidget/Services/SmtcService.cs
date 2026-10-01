@@ -42,7 +42,7 @@ public sealed class SmtcService
             thumb = ms.ToArray();
             } catch { thumb = null; }
         }
-        return new NowPlaying(props.Title, props.Artist ?? string.Empty, thumb, info.PlaybackStatus, timeline.Position, timeline.LastUpdatedTime, timeline.PlaybackRate);
+        return new NowPlaying(props.Title, props.Artist ?? string.Empty, thumb, info.PlaybackStatus, timeline.Position, timeline.LastUpdatedTime);
     }
     public Task<bool> TogglePlayPauseAsync() => DoAsync(async s => await s.TryTogglePlayPauseAsync());
     public Task<bool> NextAsync() => DoAsync(async s => await s.TrySkipNextAsync());
