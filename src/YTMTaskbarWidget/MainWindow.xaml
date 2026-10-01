@@ -8,8 +8,8 @@
     <Window.Resources>
         <!-- Transparent circular icon button (prev / next) -->
         <Style x:Key="GlassIconButton" TargetType="Button">
-            <Setter Property="Width" Value="18"/>
-            <Setter Property="Height" Value="18"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Background" Value="#14FFFFFF"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -68,7 +68,7 @@
     </Window.Resources>
 
     <!-- Liquid glass pill (fits inside 48px taskbar, draggable along it) -->
-    <Border x:Name="DragZone" CornerRadius="14" Padding="0" Cursor="SizeAll"
+    <Border x:Name="DragZone" CornerRadius="10" Padding="0" Cursor="SizeAll"
             PreviewMouseLeftButtonDown="DragZone_PreviewMouseLeftButtonDown"
             PreviewMouseMove="DragZone_PreviewMouseMove"
             PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp"
@@ -90,7 +90,7 @@
         <Border.Effect>
             <DropShadowEffect Color="Black" Opacity="0.35" BlurRadius="8" ShadowDepth="1"/>
         </Border.Effect>
-        <Grid Margin="8,2">
+        <Grid Margin="4,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="30"/>
                 <ColumnDefinition Width="*"/>
@@ -98,10 +98,10 @@
             </Grid.ColumnDefinitions>
 
             <!-- Rounded thumbnail -->
-            <Border Width="28" Height="28" CornerRadius="8" VerticalAlignment="Center"
+            <Border Width="28" Height="28" CornerRadius="10" VerticalAlignment="Center"
                     Background="#33FFFFFF">
                 <Border.Clip>
-                    <RectangleGeometry Rect="0,0,28,28" RadiusX="8" RadiusY="8"/>
+                    <RectangleGeometry Rect="0,0,28,28" RadiusX="10" RadiusY="10"/>
                 </Border.Clip>
                 <Image x:Name="Thumb" Width="28" Height="28" Stretch="UniformToFill"/>
             </Border>
@@ -116,22 +116,22 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PrevBtn" Style="{StaticResource GlassIconButton}">
                     <Path Data="M6 6h2v12H6V6zm3.5 6l8.5 6V6z" Fill="White"
-                          Width="14" Height="14" Stretch="Uniform"
+                          Width="8" Height="8" Stretch="Uniform"
                           Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
                 </Button>
                 <Button x:Name="PlayBtn" Style="{StaticResource GlassPlayButton}" Margin="4,0">
                     <Grid>
                         <Path x:Name="PlayGlyph" Data="M8 5v14l11-7z" Fill="#FF1B1B1B"
-                              Width="16" Height="16" Stretch="Uniform"
+                              Width="10" Height="10" Stretch="Uniform"
                               Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
                         <Path x:Name="PauseGlyph" Data="M6 5h4v14H6zM14 5h4v14h-4z" Fill="#FF1B1B1B"
-                              Width="15" Height="15" Stretch="Uniform" Visibility="Collapsed"
+                              Width="10" Height="10" Stretch="Uniform" Visibility="Collapsed"
                               Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
                     </Grid>
                 </Button>
                 <Button x:Name="NextBtn" Style="{StaticResource GlassIconButton}">
                     <Path Data="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" Fill="White"
-                          Width="14" Height="14" Stretch="Uniform"
+                          Width="8" Height="8" Stretch="Uniform"
                           Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
                 </Button>
             </StackPanel>

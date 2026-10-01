@@ -98,8 +98,11 @@ public partial class MainWindow : Window
 
     private void DragZone_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        var wasDragging = _dragging;
-        var moved = wasDragging && (e.GetPosition(this) - _downPos).Length > 4;
+        // Release over a control button with no background-drag in progress:
+        // hands off entirely so Button.Click fires normally.
+        if (!_dragging && IsOverButton(e.OriginalSource))
+            return;
+        var moved = _dragging && (e.GetPosition(this) - _downPos).Length > 4;
         if (_dragging)
         {
             _dragging = false;
@@ -109,8 +112,8 @@ public partial class MainWindow : Window
             _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
             SaveOffset();
         }
-        // Plain left-click on the background (not a drag, not a button): open YTM.
-        if (!moved && !IsOverButton(e.OriginalSource))
+        // Double left-click on the background (not a drag, not a button): open YTM.
+        if (!moved && e.ClickCount >= 2 && !IsOverButton(e.OriginalSource))
             OpenBrowser();
         e.Handled = true;
     }
@@ -140,10 +143,14 @@ public partial class MainWindow : Window
 
     private static bool IsOverButton(object? source)
     {
-        for (var d = source as DependencyObject; d is not null; d = LogicalTreeHelper.GetParent(d))
+        // Icon Paths live in the button template, where the logical-tree walk
+        // can miss them — climb the visual tree as well.
+        for (var d = source as DependencyObject; d is not null;)
         {
             if (d is System.Windows.Controls.Button)
                 return true;
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
+                ?? LogicalTreeHelper.GetParent(d);
         }
         return false;
     }
