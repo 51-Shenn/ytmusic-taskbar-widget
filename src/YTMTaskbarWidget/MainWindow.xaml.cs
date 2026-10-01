@@ -49,16 +49,16 @@ public partial class MainWindow : Window
 
     private void PlaceBottomCenter()
     {
-        // Fit INSIDE the 48px taskbar: use the work area (screen minus taskbar)
-        // so the pill never overflows onto the desktop or cover tray icons.
-        // A user-dragged horizontal offset is restored on top of the centered spot.
+        // Sit INSIDE the taskbar: WorkArea.Bottom is the taskbar's top edge,
+        // so center the 40px pill within the taskbar strip below it.
         const double ww = 340, wh = 40;
         var area = SystemParameters.WorkArea;
+        var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         Width = ww;
         Height = wh;
         LoadOffset();
         Left = ClampLeft(area.Left + (area.Width - ww) / 2 + _savedOffsetX, area, ww);
-        Top = area.Bottom - wh - 4;
+        Top = area.Bottom + Math.Max(0, (taskbarHeight - wh) / 2);
     }
 
     private static double ClampLeft(double left, Rect area, double ww)
@@ -88,9 +88,10 @@ public partial class MainWindow : Window
             return;
         var area = SystemParameters.WorkArea;
         var cursor = PointToScreen(e.GetPosition(this));
-        // Lock vertically to the taskbar strip; let the user slide horizontally.
+        var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
+        // Lock vertically inside the taskbar strip; let the user slide horizontally.
         Left = ClampLeft(cursor.X - _dragGrabOffset.X, area, Width);
-        Top = area.Bottom - Height - 4;
+        Top = area.Bottom + Math.Max(0, (taskbarHeight - Height) / 2);
         e.Handled = true;
     }
 
