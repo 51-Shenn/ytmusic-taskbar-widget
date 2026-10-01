@@ -1,44 +1,31 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Windows.Automation;
 namespace YTMTaskbarWidget.Services;
 public static class BrowserFocus
 {
     public static bool FocusYtmTab(string? trackTitle, string? artist, string? aumid)
     {
-        // 1) Find the exact tab (including background tabs) whose page title
-        //    matches the playing track and invoke it via UI Automation.
-        try { if (FocusTabViaUia(trackTitle, artist, aumid)) return true; } catch { }
-        // 2) Shell window registry: tab whose URL is music.youtube.com.
-        try { if (FocusShellTab()) return true; } catch { }
-        // 3) A browser window already showing the track (active tab match).
-        try { if (FocusWindowByTitle(trackTitle, artist, aumid)) return true; } catch { }
-        // 4) Any visible window of the browser that owns the media session.
-        try { return FocusProcessWindow(aumid); } catch { return false; }
-    }
-
-    private static bool FocusTabViaUia(string? trackTitle, string? artist, string? aumid)
-    {
-        foreach (var hwnd in BrowserWindows(aumid))
+        var windows = BrowserWindows(aumid);
+        if (windows.Count == 0)
+            return false;
+        // 1) The track's tab is already the active tab of some window.
+        foreach (var hwnd in windows)
         {
-            var root = AutomationElement.FromHandle(hwnd);
-            var tabs = root.FindAll(
-                TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem));
-            foreach (AutomationElement tab in tabs)
-            {
-                if (!TabNameMatches(trackTitle, artist, tab.Current.Name))
-                    continue;
-                if (tab.TryGetCurrentPattern(InvokePattern.Pattern, out var pattern)
-                    && pattern is InvokePattern invoke)
-                {
-                    invoke.Invoke();
-                    Focus(hwnd);
-                    return true;
-                }
-            }
+            var title = GetTitle(hwnd);
+            if (TabNameMatches(trackTitle, artist, title))
+                return Focus(hwnd);
         }
-        return false;
+        // 2) Shell window registry (works where the shell exposes browser tabs).
+        try { if (FocusShellTab()) return true; } catch { }
+        // 3) Background tab: use the browser's own tab-search popup —
+        //    Ctrl+Shift+A, type the track title, Enter. Requires foreground
+        //    ownership so keystrokes can never land in another application.
+        if (!string.IsNullOrWhiteSpace(trackTitle))
+        {
+            try { if (FocusViaTabSearch(windows[0], trackTitle)) return true; } catch { }
+        }
+        // 4) Last resort: bring the browser forward as-is.
+        return Focus(windows[0]);
     }
 
     public static bool TabNameMatches(string? trackTitle, string? artist, string? tabName)
@@ -55,53 +42,64 @@ public static class BrowserFocus
         return false;
     }
 
-    private static bool FocusWindowByTitle(string? trackTitle, string? artist, string? aumid)
+    private static bool FocusViaTabSearch(IntPtr hwnd, string trackTitle)
     {
-        foreach (var hwnd in BrowserWindows(aumid))
+        if (IsIconic(hwnd))
+            ShowWindow(hwnd, 9 /*SW_RESTORE*/);
+        var root = GetAncestor(hwnd, 2 /*GA_ROOT*/);
+        if (root != IntPtr.Zero)
+            hwnd = root;
+        if (!SetForegroundWindow(hwnd))
         {
-            var title = GetTitle(hwnd);
-            if (TabNameMatches(trackTitle, artist, title))
-                return Focus(hwnd);
+            // Foreground lock: synthesizing a VK_MENU press grants permission.
+            keybd_event(0x12, 0, 0, 0);
+            SetForegroundWindow(hwnd);
+            keybd_event(0x12, 0, 2 /*KEYEVENTF_KEYUP*/, 0);
         }
-        return false;
-    }
+        if (!WaitForeground(hwnd, 800))
+            return false;
+        Thread.Sleep(120);
 
-    private static List<IntPtr> BrowserWindows(string? aumid)
-    {
-        var result = new List<IntPtr>();
-        var exe = ExeFromAumid(aumid);
-        if (exe is null)
-            return result;
-        var selfPid = (uint)Environment.ProcessId;
-        EnumWindows((h, _) =>
+        // Ctrl+Shift+A → tab search popup (Chrome / Edge / Brave).
+        SendVk(0x11, true);   // Ctrl
+        SendVk(0x10, true);   // Shift
+        SendVk(0x41, true);   // A
+        SendVk(0x41, false);
+        SendVk(0x10, false);
+        SendVk(0x11, false);
+        Thread.Sleep(220);
+
+        // Type the track title into the auto-focused search box.
+        var typed = 0;
+        foreach (var ch in trackTitle)
         {
-            GetWindowThreadProcessId(h, out var pid);
-            if (pid == 0 || pid == selfPid) return true;
-            try
-            {
-                var name = Process.GetProcessById((int)pid).ProcessName;
-                if (!string.Equals(name, exe, StringComparison.OrdinalIgnoreCase)) return true;
-            }
-            catch
-            {
-                return true;
-            }
-            if (!IsWindowVisible(h)) return true;
-            if (GetWindow(h, 4 /*GW_OWNER*/) != IntPtr.Zero) return true;
-            result.Add(h);
-            return true;
-        }, IntPtr.Zero);
-        return result;
+            if (typed >= 60) break;
+            if (char.IsControl(ch)) continue;
+            SendUnicode(ch);
+            typed++;
+        }
+        if (typed == 0)
+            return false;
+        Thread.Sleep(180);
+
+        // Enter → activate the top match.
+        SendVk(0x0D, true);
+        SendVk(0x0D, false);
+        Thread.Sleep(120);
+        return true;
     }
 
-    private static string GetTitle(IntPtr hwnd)
+    private static bool WaitForeground(IntPtr hwnd, int timeoutMs)
     {
-        var length = GetWindowTextLength(hwnd);
-        if (length <= 0)
-            return string.Empty;
-        var sb = new System.Text.StringBuilder(length + 1);
-        GetWindowText(hwnd, sb, sb.Capacity);
-        return sb.ToString();
+        var waited = 0;
+        while (waited < timeoutMs)
+        {
+            if (GetForegroundWindow() == hwnd)
+                return true;
+            Thread.Sleep(25);
+            waited += 25;
+        }
+        return GetForegroundWindow() == hwnd;
     }
 
     private static bool FocusShellTab()
@@ -147,10 +145,42 @@ public static class BrowserFocus
         return false;
     }
 
-    private static bool FocusProcessWindow(string? aumid)
+    private static List<IntPtr> BrowserWindows(string? aumid)
     {
-        var windows = BrowserWindows(aumid);
-        return windows.Count > 0 && Focus(windows[0]);
+        var result = new List<IntPtr>();
+        var exe = ExeFromAumid(aumid);
+        if (exe is null)
+            return result;
+        var selfPid = (uint)Environment.ProcessId;
+        EnumWindows((h, _) =>
+        {
+            GetWindowThreadProcessId(h, out var pid);
+            if (pid == 0 || pid == selfPid) return true;
+            try
+            {
+                var name = Process.GetProcessById((int)pid).ProcessName;
+                if (!string.Equals(name, exe, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            catch
+            {
+                return true;
+            }
+            if (!IsWindowVisible(h)) return true;
+            if (GetWindow(h, 4 /*GW_OWNER*/) != IntPtr.Zero) return true;
+            result.Add(h);
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+
+    private static string GetTitle(IntPtr hwnd)
+    {
+        var length = GetWindowTextLength(hwnd);
+        if (length <= 0)
+            return string.Empty;
+        var sb = new System.Text.StringBuilder(length + 1);
+        GetWindowText(hwnd, sb, sb.Capacity);
+        return sb.ToString();
     }
 
     private static string? ExeFromAumid(string? aumid)
@@ -171,12 +201,90 @@ public static class BrowserFocus
             hwnd = root;
         if (SetForegroundWindow(hwnd))
             return true;
-        // Foreground lock: synthesizing a VK_MENU press grants permission.
         keybd_event(0x12, 0, 0, 0);
         var ok = SetForegroundWindow(hwnd);
         keybd_event(0x12, 0, 2 /*KEYEVENTF_KEYUP*/, 0);
         return ok;
     }
+
+    // ---- synthetic input -------------------------------------------------
+
+    private const uint INPUT_KEYBOARD = 1;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_UNICODE = 0x0004;
+
+    private static void SendVk(byte vk, bool down)
+    {
+        var input = new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new INPUTUNION
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = vk,
+                    dwFlags = down ? 0 : KEYEVENTF_KEYUP
+                }
+            }
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
+    private static void SendUnicode(char ch)
+    {
+        var input = new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new INPUTUNION
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = 0,
+                    wScan = ch,
+                    dwFlags = KEYEVENTF_UNICODE
+                }
+            }
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct INPUTUNION
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public INPUTUNION U;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -194,6 +302,9 @@ public static class BrowserFocus
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);

@@ -216,27 +216,32 @@ public partial class MainWindow : Window
 
     private void OpenBrowser()
     {
-        // Prefer the already-open YouTube Music tab playing this track over
-        // spawning a new tab; only open a fresh one if we can't find it.
-        try
+        // Never block the UI thread: WinRT/COM/foreground waits all run in
+        // the background; if anything hangs there, the widget stays alive.
+        _ = Task.Run(() =>
         {
-            var track = App.Smtc.CurrentTrack();
-            if (BrowserFocus.FocusYtmTab(track?.Title, track?.Artist, App.Smtc.CurrentSessionAumid()))
-                return;
-        }
-        catch
-        {
-        }
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://music.youtube.com")
+            // Prefer the already-open YouTube Music tab playing this track
+            // over spawning a new tab; only open a fresh one if we can't.
+            try
             {
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
-        }
+                var track = App.Smtc.CurrentTrack();
+                if (BrowserFocus.FocusYtmTab(track?.Title, track?.Artist, App.Smtc.CurrentSessionAumid()))
+                    return;
+            }
+            catch
+            {
+            }
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://music.youtube.com")
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+            }
+        });
     }
 
     private static bool IsOverButton(object? source)
