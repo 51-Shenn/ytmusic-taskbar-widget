@@ -13,6 +13,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private List<LrcLine> _lines = new();
     private string _key = string.Empty;
+    private bool _refreshing;
+    private int _nullStreak;
+    private int _tickCount;
 
     public MainWindow()
     {
@@ -37,8 +40,14 @@ public partial class MainWindow : Window
 
     private void PlaceBottomCenter()
     {
-        Left = (SystemParameters.PrimaryScreenWidth - 400) / 2;
-        Top = SystemParameters.PrimaryScreenHeight - 52;
+        // Fit INSIDE the 48px taskbar: use the work area (screen minus taskbar)
+        // so the pill never overflows onto the desktop or cover tray icons.
+        const double ww = 340, wh = 40;
+        var area = SystemParameters.WorkArea;
+        Width = ww;
+        Height = wh;
+        Left = area.Left + (area.Width - ww) / 2;
+        Top = area.Bottom - wh - 4;
     }
 
     private void MakeClickThrough()
@@ -87,12 +96,36 @@ public partial class MainWindow : Window
 
     private async Task RefreshAsync()
     {
+        if (_refreshing)
+            return;
+        _refreshing = true;
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            // Never let a transient SMTC/network failure kill the timer or hide the widget.
+            Log($"refresh FAILED err={ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task RefreshCoreAsync()
+    {
         var np = await App.Smtc.GetNowPlayingAsync();
         if (np is null)
         {
-            Visibility = Visibility.Collapsed;
+            // Track transitions briefly report null — only hide after ~2s of silence.
+            _nullStreak++;
+            if (_nullStreak >= 4)
+                Visibility = Visibility.Collapsed;
             return;
         }
+        _nullStreak = 0;
 
         Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
@@ -139,9 +172,11 @@ public partial class MainWindow : Window
             }
         }
 
-        var cur = LrcParser.CurrentLine(_lines, np.Position);
+        var cur = LrcParser.CurrentLine(_lines, np.EffectivePosition);
         LyricText.Text = cur ?? string.Empty;
-        Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} lines={_lines.Count} cur='{cur}'");
+        _tickCount++;
+        if (_tickCount % 10 == 0)
+            Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} eff={np.EffectivePosition} lines={_lines.Count} cur='{cur}'");
     }
 
     private static void Log(string msg)
