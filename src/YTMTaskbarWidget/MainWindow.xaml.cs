@@ -388,7 +388,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private const string MusicNoteFallback = "\u266A";
+    private const string MusicNoteFallback = "-";
 
     private void UpdateLyricLine()
     {
@@ -397,7 +397,7 @@ public partial class MainWindow : Window
             return;
         if (_lines.Count == 0)
         {
-            // Playing with no lyrics available: show a music note instead of words.
+            // Playing with no lyrics available: show a dash instead of words.
             LyricText.Text = MusicNoteFallback;
             return;
         }

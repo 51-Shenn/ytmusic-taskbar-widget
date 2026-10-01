@@ -12,7 +12,7 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
-            <Setter Property="Background" Value="#14FFFFFF"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -20,18 +20,10 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle" CornerRadius="16"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="#28FFFFFF" BorderThickness="1">
+                                Background="Transparent"
+                                BorderThickness="0">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#2EFFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#40FFFFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -42,29 +34,18 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Width" Value="36"/>
             <Setter Property="Height" Value="36"/>
-            <Setter Property="Background" Value="#F2FFFFFF"/>
-            <Setter Property="Foreground" Value="#FF1B1B1B"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle" CornerRadius="18"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="#66FFFFFF" BorderThickness="1">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black" Opacity="0.35" BlurRadius="8" ShadowDepth="1"/>
-                            </Border.Effect>
+                                Background="Transparent"
+                                BorderThickness="0">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#D8FFFFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -141,12 +122,12 @@
                 </Button>
                 <Button x:Name="PlayBtn" Style="{StaticResource GlassPlayButton}" Margin="4,0">
                     <Grid>
-                        <Path x:Name="PlayGlyph" Data="M8 5v14l11-7z" Fill="#FF1B1B1B"
+                        <Path x:Name="PlayGlyph" Data="M8 5v14l11-7z" Fill="White"
                               Width="10" Height="10" Stretch="Uniform"
-                              Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
-                        <Path x:Name="PauseGlyph" Data="M6 5h4v14H6zM14 5h4v14h-4z" Fill="#FF1B1B1B"
+                              Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
+                        <Path x:Name="PauseGlyph" Data="M6 5h4v14H6zM14 5h4v14h-4z" Fill="White"
                               Width="10" Height="10" Stretch="Uniform" Visibility="Collapsed"
-                              Stroke="#FF1B1B1B" StrokeThickness="1" StrokeLineJoin="Round"/>
+                              Stroke="White" StrokeThickness="1" StrokeLineJoin="Round"/>
                     </Grid>
                 </Button>
                 <Button x:Name="NextBtn" Style="{StaticResource GlassIconButton}">
