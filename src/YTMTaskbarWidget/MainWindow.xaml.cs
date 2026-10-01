@@ -26,6 +26,9 @@ public partial class MainWindow : Window
     private DateTime _lastClickTime = DateTime.MinValue;
     private Point _lastClickPos;
     private double _savedOffsetX;
+    private System.Windows.Controls.Border[] _waveBars = Array.Empty<System.Windows.Controls.Border>();
+    private int _waveTick;
+    private Native.WinEventDelegate? _winEventProc;
     private static string OffsetFile =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -48,11 +51,59 @@ public partial class MainWindow : Window
         await App.Smtc.InitAsync();
         PlaceBottomCenter();
         MakeClickThrough();
+        HookShellEvents();
+        _waveBars = new[] { WaveBar0, WaveBar1, WaveBar2, WaveBar3 };
         _timer.Tick += async (_, _) => await RefreshAsync();
         _timer.Start();
-        _lyricTimer.Tick += (_, _) => UpdateLyricLine();
+        _lyricTimer.Tick += (_, _) =>
+        {
+            UpdateWave();
+            UpdateLyricLine();
+        };
         _lyricTimer.Start();
         await RefreshAsync();
+    }
+
+    private void HookShellEvents()
+    {
+        // The taskbar re-asserts its topmost Z-order whenever an app opens,
+        // closes or restores, briefly burying the pill behind it. Re-pin the
+        // instant the foreground window changes instead of waiting a tick.
+        _winEventProc = (_, eventType, _, _, _, _, _) =>
+        {
+            if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
+                PinTopmost();
+        };
+        try
+        {
+            Native.SetWinEventHook(
+                Native.EVENT_SYSTEM_FOREGROUND,
+                Native.EVENT_SYSTEM_FOREGROUND,
+                IntPtr.Zero,
+                _winEventProc,
+                0, 0,
+                Native.WINEVENT_OUTOFCONTEXT);
+        }
+        catch
+        {
+        }
+    }
+
+    private void UpdateWave()
+    {
+        if (_waveBars.Length == 0)
+            return;
+        var np = _lastNp;
+        var playing = np is not null
+            && np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing
+            && Visibility == Visibility.Visible;
+        _waveTick++;
+        for (var i = 0; i < _waveBars.Length; i++)
+        {
+            _waveBars[i].Height = playing
+                ? 3 + 11 * Math.Abs(Math.Sin(_waveTick * 0.45 + i * 1.1))
+                : 3;
+        }
     }
 
     private void PlaceBottomCenter()
@@ -263,6 +314,9 @@ public partial class MainWindow : Window
 
     private async Task RefreshCoreAsync()
     {
+        // Every 500ms: the taskbar can slide over us at any moment; the
+        // foreground hook handles the common case, this catches the rest.
+        PinTopmost();
         var np = await App.Smtc.GetNowPlayingAsync();
         if (np is null)
         {
@@ -328,7 +382,6 @@ public partial class MainWindow : Window
         _tickCount++;
         if (_tickCount % 10 == 0)
         {
-            PinTopmost();
             Log($"tick title='{np.Title}' artist='{np.Artist}' status={np.Status} pos={np.Position} eff={np.EffectivePosition} lines={_lines.Count} cur='{cur}'");
         }
     }
@@ -398,6 +451,11 @@ public partial class MainWindow : Window
 
     private static class Native
     {
+        internal const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+        internal const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+
+        internal delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
         [DllImport("user32.dll")]
         internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
@@ -406,5 +464,8 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")]
         internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
     }
 }

@@ -17,6 +17,11 @@ public sealed record NowPlaying(
             var drift = DateTimeOffset.Now - LastUpdated;
             if (drift < TimeSpan.Zero)
                 return Position;
+            // SMTC sessions stop pushing fresh positions for long stretches (seek
+            // stalls, background tabs). Unbounded extrapolation ran lyric display
+            // ~20s ahead of the real song, so cap how far ahead we guess.
+            if (drift > TimeSpan.FromSeconds(3))
+                return Position + TimeSpan.FromSeconds(3);
             return Position + drift;
         }
     }

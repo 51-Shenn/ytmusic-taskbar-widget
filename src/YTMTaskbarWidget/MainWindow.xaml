@@ -96,13 +96,29 @@
         </Border.Effect>
         <Grid Margin="4,2">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="30"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Dynamic-Island style soundwave (left of album art) -->
+            <Grid Grid.Column="0" Width="22" Height="18" VerticalAlignment="Center"
+                  Margin="4,0,0,0" IsHitTestVisible="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                    <Border x:Name="WaveBar0" Width="3" Height="3" CornerRadius="1.5"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
+                    <Border x:Name="WaveBar1" Width="3" Height="3" CornerRadius="1.5"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
+                    <Border x:Name="WaveBar2" Width="3" Height="3" CornerRadius="1.5"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
+                    <Border x:Name="WaveBar3" Width="3" Height="3" CornerRadius="1.5"
+                            Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Bottom"/>
+                </StackPanel>
+            </Grid>
+
             <!-- Rounded thumbnail -->
-            <Border Width="32" Height="32" CornerRadius="10" VerticalAlignment="Center"
+            <Border Grid.Column="1" Width="32" Height="32" CornerRadius="10" VerticalAlignment="Center"
                     Background="#33FFFFFF">
                 <Border.Clip>
                     <RectangleGeometry Rect="0,0,32,32" RadiusX="10" RadiusY="10"/>
@@ -110,14 +126,14 @@
                 <Image x:Name="Thumb" Width="32" Height="32" Stretch="UniformToFill"/>
             </Border>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
                 <TextBlock x:Name="TitleText" Text="Nothing playing" Foreground="White"
                            FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="LyricText" Text="" Foreground="#FF9A9A9A"
                            FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
             </StackPanel>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PrevBtn" Style="{StaticResource GlassIconButton}">
                     <Path Data="M6 6h2v12H6V6zm3.5 6l8.5 6V6z" Fill="White"
                           Width="8" Height="8" Stretch="Uniform"
