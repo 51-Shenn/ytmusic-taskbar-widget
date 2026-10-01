@@ -1,7 +1,7 @@
 <Window x:Class="YTMTaskbarWidget.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="YTM Taskbar Widget" Height="46" Width="340"
+        Title="YTM Taskbar Widget" Height="44" Width="340"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" Topmost="True" ShowInTaskbar="False"
         ResizeMode="NoResize" Top="1000" Left="500">

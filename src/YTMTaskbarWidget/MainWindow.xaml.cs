@@ -58,8 +58,8 @@ public partial class MainWindow : Window
     private void PlaceBottomCenter()
     {
         // Sit INSIDE the taskbar: WorkArea.Bottom is the taskbar's top edge,
-        // so center the 46px pill within the taskbar strip below it.
-        const double ww = 340, wh = 46;
+        // so center the 44px pill within the taskbar strip below it.
+        const double ww = 340, wh = 44;
         var area = SystemParameters.WorkArea;
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         Width = ww;
@@ -359,28 +359,28 @@ public partial class MainWindow : Window
             LyricText.Text = line.Text;
             return;
         }
-        // Karaoke: sung words white, upcoming words gray.
+        // Karaoke: sung words red, upcoming words gray.
         var sung = LrcParser.SungWordCount(line, pos);
         LyricText.Inlines.Clear();
         for (var i = 0; i < line.Words.Count; i++)
         {
             var run = new System.Windows.Documents.Run(line.Words[i].Text)
             {
-                Foreground = i < sung
-                    ? System.Windows.Media.Brushes.White
-                    : UpcomingBrush
+                Foreground = i < sung ? SungBrush : UpcomingBrush
             };
             LyricText.Inlines.Add(run);
         }
     }
 
-    private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateUpcomingBrush();
+    private static readonly System.Windows.Media.SolidColorBrush SungBrush = CreateFrozenBrush(0xFF, 0x33, 0x55);
 
-    private static System.Windows.Media.SolidColorBrush CreateUpcomingBrush()
+    private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateFrozenBrush(0x9A, 0x9A, 0x9A);
+
+    private static System.Windows.Media.SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
     {
-        var b = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0x9A, 0x9A));
-        b.Freeze();
-        return b;
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 
     private static void Log(string msg)
