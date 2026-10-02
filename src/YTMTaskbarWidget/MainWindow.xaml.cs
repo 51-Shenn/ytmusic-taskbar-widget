@@ -19,7 +19,6 @@ public partial class MainWindow : Window
     private string _key = string.Empty;
     private string _lastLyricKey = string.Empty;
     private bool _refreshing;
-    private int _nullStreak;
     private int _tickCount;
     private bool _dragging;
     private bool _dragArmed;
@@ -321,16 +320,12 @@ public partial class MainWindow : Window
         var np = await App.Smtc.GetNowPlayingAsync();
         if (np is null)
         {
-            // Track transitions briefly report null — only hide after ~2s of silence.
-            _nullStreak++;
-            if (_nullStreak >= 4)
-                Visibility = Visibility.Collapsed;
+            // Session gone (tab closed / no media app). Keep the last track on
+            // screen — the widget is never hidden; the user quits it with a
+            // double-right-click instead.
             return;
         }
-        _nullStreak = 0;
         _lastNp = np;
-
-        Visibility = Visibility.Visible;
         var playing = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         PlayGlyph.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
         PauseGlyph.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
