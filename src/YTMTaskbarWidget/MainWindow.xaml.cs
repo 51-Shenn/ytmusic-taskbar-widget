@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private List<LrcLine> _lines = new();
     private YTMTaskbarWidget.Models.NowPlaying? _lastNp;
     private string _key = string.Empty;
+    private string _lastLyricKey = string.Empty;
     private bool _refreshing;
     private int _nullStreak;
     private int _tickCount;
@@ -37,6 +38,8 @@ public partial class MainWindow : Window
     private bool _marqueePending;
     private double _marqueeOffset;
     private int _marqueeHoldMs;
+    private int _lyricWordCount;
+    private int _lyricSung;
     private static string OffsetFile =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -404,8 +407,12 @@ public partial class MainWindow : Window
         if (key != _key)
         {
             _key = key;
+            _lastLyricKey = string.Empty;
+            _lyricWordCount = 0;
+            _lyricSung = 0;
             _lines = new List<LrcLine>();
             LyricText.Text = string.Empty;
+            Canvas.SetLeft(LyricText, 0);
             // Single copy of the title; SetupMarquee may double it for the loop.
             _displayTitle = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
             TitleText.Text = _displayTitle;
@@ -443,7 +450,14 @@ public partial class MainWindow : Window
         if (_lines.Count == 0)
         {
             // No lyrics exist for this track: dash.
-            LyricText.Text = NoLyricsDash;
+            if (_lastLyricKey != "dash")
+            {
+                _lastLyricKey = "dash";
+                _lyricWordCount = 0;
+                _lyricSung = 0;
+                LyricText.Text = NoLyricsDash;
+                Canvas.SetLeft(LyricText, 0);
+            }
             return;
         }
         var pos = np.EffectivePosition;
@@ -451,29 +465,96 @@ public partial class MainWindow : Window
         if (idx < 0)
         {
             // Lyrics exist but none yet (intro): music note.
-            LyricText.Text = LyricsPendingNote;
+            if (_lastLyricKey != "intro")
+            {
+                _lastLyricKey = "intro";
+                _lyricWordCount = 0;
+                _lyricSung = 0;
+                LyricText.Text = LyricsPendingNote;
+                Canvas.SetLeft(LyricText, 0);
+            }
             return;
         }
         var line = _lines[idx];
-        if (line.Words.Count == 0)
+        List<string> wordTexts;
+        int sung;
+        if (line.Words.Count > 0)
         {
-            LyricText.Text = line.Text;
+            wordTexts = new List<string>(line.Words.Count);
+            foreach (var w in line.Words)
+                wordTexts.Add(w.Text);
+            // Karaoke: sung words white, upcoming words gray.
+            sung = LrcParser.SungWordCount(line, pos);
+        }
+        else
+        {
+            // Plain line: no word timestamps — spread words evenly
+            // across the line duration so it still lights word-by-word.
+            wordTexts = LrcParser.SplitPlainWords(line.Text);
+            if (wordTexts.Count == 0)
+            {
+                var plainKey = $"plain:{idx}:{line.Text}";
+                if (_lastLyricKey == plainKey)
+                    return;
+                _lastLyricKey = plainKey;
+                _lyricWordCount = 0;
+                _lyricSung = 0;
+                LyricText.Text = line.Text;
+                Canvas.SetLeft(LyricText, 0);
+                return;
+            }
+            var lineEnd = idx + 1 < _lines.Count
+                ? _lines[idx + 1].Timestamp
+                : line.Timestamp + TimeSpan.FromSeconds(4);
+            sung = LrcParser.EstimateSungCount(wordTexts, line.Timestamp, lineEnd, pos);
+        }
+        _lyricWordCount = wordTexts.Count;
+        _lyricSung = sung;
+        var renderKey = $"{idx}:{sung}:{line.Text}";
+        if (_lastLyricKey == renderKey)
+        {
+            RefreshLyricScroll();
             return;
         }
-        // Karaoke: sung words red, upcoming words gray.
-        var sung = LrcParser.SungWordCount(line, pos);
+        _lastLyricKey = renderKey;
         LyricText.Inlines.Clear();
-        for (var i = 0; i < line.Words.Count; i++)
+        for (var i = 0; i < wordTexts.Count; i++)
         {
-            var run = new System.Windows.Documents.Run(line.Words[i].Text)
+            var run = new System.Windows.Documents.Run(wordTexts[i])
             {
                 Foreground = i < sung ? SungBrush : UpcomingBrush
             };
             LyricText.Inlines.Add(run);
         }
+        RefreshLyricScroll();
     }
 
-    private static readonly System.Windows.Media.SolidColorBrush SungBrush = CreateFrozenBrush(0xFF, 0x33, 0x55);
+    internal static double LyricScrollOffset(double naturalWidth, double availWidth, int wordCount, int sung)
+    {
+        if (availWidth <= 0 || naturalWidth <= 0 || wordCount <= 1)
+            return 0;
+        var max = naturalWidth - availWidth;
+        if (max <= 0.5)
+            return 0;
+        // Keep the first word pinned at offset 0: pan only as later
+        // words light up, so (sung=1 -> 0) ... (sung=N -> max).
+        var fraction = (double)(Math.Max(1, Math.Min(wordCount, sung)) - 1) / (wordCount - 1);
+        return max * Math.Max(0, Math.Min(1, fraction));
+    }
+
+    private void RefreshLyricScroll()
+    {
+        if (_lyricWordCount <= 0)
+            return;
+        LyricText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var avail = LyricClip.ActualWidth;
+        if (avail <= 0)
+            return;
+        var offset = LyricScrollOffset(LyricText.DesiredSize.Width, avail, _lyricWordCount, _lyricSung);
+        Canvas.SetLeft(LyricText, -offset);
+    }
+
+    private static readonly System.Windows.Media.SolidColorBrush SungBrush = CreateFrozenBrush(0xD7, 0xD7, 0xD7);
 
     private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateFrozenBrush(0x9A, 0x9A, 0x9A);
 

@@ -101,4 +101,77 @@ public sealed class LrcParserTests
         Assert.Single(lines);
         Assert.Empty(lines[0].Words);
     }
+    [Fact]
+    public void SplitPlainWords_Keeps_Spacing_For_Karaoke_Runs()
+    {
+        var words = LrcParser.SplitPlainWords("hello brave world");
+        Assert.Equal(new[] { "hello ", "brave ", "world" }, words);
+    }
+    [Fact]
+    public void SplitPlainWords_Empty_Returns_Empty()
+    {
+        Assert.Empty(LrcParser.SplitPlainWords("   "));
+    }
+    [Theory]
+    [InlineData(10, 14, 10, 4, 1)]
+    [InlineData(10, 14, 11, 4, 2)]
+    [InlineData(10, 14, 12, 4, 3)]
+    [InlineData(10, 14, 13, 4, 4)]
+    [InlineData(10, 14, 14, 4, 4)]
+    [InlineData(10, 14, 9, 4, 0)]
+    public void EstimateSungCount_Spreads_Words_Evenly(
+        int startS, int endS, int posS, int wordCount, int expected)
+    {
+        var sung = LrcParser.EstimateSungCount(
+            wordCount,
+            TimeSpan.FromSeconds(startS),
+            TimeSpan.FromSeconds(endS),
+            TimeSpan.FromSeconds(posS));
+        Assert.Equal(expected, sung);
+    }
+    [Fact]
+    public void EstimateSungCount_Zero_Words_Returns_Zero()
+    {
+        Assert.Equal(0, LrcParser.EstimateSungCount(
+            0, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(14), TimeSpan.FromSeconds(12)));
+    }
+    [Fact]
+    public void EstimateSungCount_Weighted_Long_Word_Holds_Longer()
+    {
+        var words = new[] { "supercalifragilistic ", "a" };
+        var start = TimeSpan.FromSeconds(10);
+        var end = TimeSpan.FromSeconds(14);
+        Assert.Equal(1, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(10)));
+        Assert.Equal(1, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(11)));
+        Assert.Equal(1, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(13)));
+        Assert.Equal(2, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(14)));
+        Assert.Equal(0, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(9)));
+    }
+    [Fact]
+    public void EstimateSungCount_Weighted_Equal_Words_Matches_Even_Split()
+    {
+        var words = new[] { "one ", "two ", "three ", "four" };
+        var start = TimeSpan.FromSeconds(10);
+        var end = TimeSpan.FromSeconds(14);
+        Assert.Equal(1, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(10)));
+        Assert.Equal(2, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(11)));
+        Assert.Equal(4, LrcParser.EstimateSungCount(words, start, end, TimeSpan.FromSeconds(13)));
+    }
+    [Fact]
+    public void WordProgress_Uses_Next_Word_As_Denominator()
+    {
+        var lines = LrcParser.Parse("[00:10.00]<00:10.00>hel <00:12.00>lo\n");
+        var line = lines[0];
+        var lineEnd = TimeSpan.FromSeconds(14);
+        Assert.Equal(0, LrcParser.WordProgress(line, lineEnd, TimeSpan.FromSeconds(9)), 5);
+        Assert.Equal(0.5, LrcParser.WordProgress(line, lineEnd, TimeSpan.FromSeconds(11)), 5);
+        Assert.Equal(0.5, LrcParser.WordProgress(line, lineEnd, TimeSpan.FromSeconds(13)), 5);
+        Assert.Equal(1, LrcParser.WordProgress(line, lineEnd, TimeSpan.FromSeconds(14)), 5);
+    }
+    [Fact]
+    public void WordProgress_Plain_Line_Returns_Zero()
+    {
+        var lines = LrcParser.Parse("[00:10.00]just text\n");
+        Assert.Equal(0, LrcParser.WordProgress(lines[0], TimeSpan.FromSeconds(14), TimeSpan.FromSeconds(12)));
+    }
 }

@@ -46,4 +46,19 @@ public sealed class MarqueeTests
     {
         Assert.Equal(4000, MainWindow.MarqueeSeamPauseMs);
     }
+
+    [Theory]
+    [InlineData(100, 150, 5, 3, 0)]
+    [InlineData(0, 150, 5, 3, 0)]
+    [InlineData(200, 0, 5, 3, 0)]
+    [InlineData(200, 150, 1, 1, 0)]
+    [InlineData(200, 150, 4, 0, 0)]
+    [InlineData(200, 150, 4, 1, 0)]
+    [InlineData(200, 150, 4, 4, 50)]
+    [InlineData(200, 150, 4, 2, 50.0 / 3)]
+    public void LyricScrollOffset_Follows_Sung_Fraction(
+        double natural, double avail, int words, int sung, double expected)
+    {
+        Assert.Equal(expected, MainWindow.LyricScrollOffset(natural, avail, words, sung), 5);
+    }
 }

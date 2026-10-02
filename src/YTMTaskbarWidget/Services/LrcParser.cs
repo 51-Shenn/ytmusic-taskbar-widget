@@ -99,6 +99,85 @@ public static partial class LrcParser
         }
         return n;
     }
+
+    public static List<string> SplitPlainWords(string text)
+    {
+        var parts = (text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = new List<string>(parts.Length);
+        for (var i = 0; i < parts.Length; i++)
+            words.Add(i + 1 < parts.Length ? parts[i] + " " : parts[i]);
+        return words;
+    }
+
+    public static int EstimateSungCount(int wordCount, TimeSpan lineStart, TimeSpan lineEnd, TimeSpan position)
+    {
+        if (wordCount <= 0)
+            return 0;
+        if (position < lineStart)
+            return 0;
+        if (position >= lineEnd)
+            return wordCount;
+        var totalMs = (lineEnd - lineStart).TotalMilliseconds;
+        if (totalMs <= 0)
+            return wordCount;
+        var elapsedMs = (position - lineStart).TotalMilliseconds;
+        var fraction = Math.Max(0, Math.Min(1, elapsedMs / totalMs));
+        // +1 so the first word lights the moment its line starts,
+        // matching timestamped behavior at pos == lineStart.
+        return Math.Max(1, Math.Min(wordCount, (int)(fraction * wordCount) + 1));
+    }
+
+    public static int EstimateSungCount(IReadOnlyList<string> words, TimeSpan lineStart, TimeSpan lineEnd, TimeSpan position)
+    {
+        var wordCount = words?.Count ?? 0;
+        if (wordCount <= 0)
+            return 0;
+        if (position < lineStart)
+            return 0;
+        if (position >= lineEnd)
+            return wordCount;
+        var totalMs = (lineEnd - lineStart).TotalMilliseconds;
+        if (totalMs <= 0)
+            return wordCount;
+        var elapsedMs = (position - lineStart).TotalMilliseconds;
+        double totalWeight = 0;
+        var weights = new double[wordCount];
+        for (var i = 0; i < wordCount; i++)
+        {
+            var w = Math.Max(1, (words![i] ?? string.Empty).Trim().Length);
+            weights[i] = w;
+            totalWeight += w;
+        }
+        if (totalWeight <= 0)
+            return EstimateSungCount(wordCount, lineStart, lineEnd, position);
+        // First word lights at line start; each following word flips when
+        // its weighted share of the line duration has elapsed.
+        var acc = 0.0;
+        for (var i = 0; i < wordCount; i++)
+        {
+            acc += weights[i] / totalWeight * totalMs;
+            if (elapsedMs < acc)
+                return Math.Max(1, i + 1);
+        }
+        return wordCount;
+    }
+
+    public static double WordProgress(LrcLine line, TimeSpan lineEnd, TimeSpan position)
+    {
+        if (line.Words.Count == 0)
+            return 0;
+        var sung = SungWordCount(line, position);
+        if (sung <= 0)
+            return 0;
+        var active = Math.Min(sung, line.Words.Count) - 1;
+        var start = line.Words[active].Timestamp;
+        var end = active + 1 < line.Words.Count ? line.Words[active + 1].Timestamp : lineEnd;
+        var totalMs = (end - start).TotalMilliseconds;
+        if (totalMs <= 0)
+            return 1;
+        var elapsedMs = (position - start).TotalMilliseconds;
+        return Math.Max(0, Math.Min(1, elapsedMs / totalMs));
+    }
     public static string? CurrentLine(List<LrcLine> lines, TimeSpan position)
     {
         string? cur = null;

@@ -135,8 +135,10 @@
                                 FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                 Canvas.Left="0" Canvas.Top="0"/>
                 </Canvas>
-                <TextBlock x:Name="LyricText" Text="" Foreground="#FF9A9A9A"
-                           FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                <Canvas x:Name="LyricClip" ClipToBounds="True" Height="14" Margin="0,1,0,0">
+                    <TextBlock x:Name="LyricText" Text="" Foreground="#FF9A9A9A"
+                               FontSize="11" Canvas.Left="0" Canvas.Top="0"/>
+                </Canvas>
             </StackPanel>
 
             <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
