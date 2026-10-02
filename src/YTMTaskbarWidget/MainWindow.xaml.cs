@@ -528,6 +528,31 @@ public partial class MainWindow : Window
 
     internal static string MarqueeLoopText(string title) => $"{title}          {title}";
 
+    internal static (double Offset, int HoldMs) NextMarquee(
+        double offset, int holdMs, double loopMax, bool isPlaying)
+    {
+        // Not playing (paused, stopped, or no session): kill the infinite loop
+        // and snap the title back to where it starts.
+        if (!isPlaying)
+            return (0, 0);
+
+        if (holdMs > 0)
+        {
+            // Hold at the seam, then rewind to 0 — frame-identical, so the next
+            // loop starts seamlessly.
+            var remaining = holdMs - 150;
+            return remaining <= 0 ? (0, 0) : (offset, remaining);
+        }
+
+        if (loopMax <= 0)
+            return (offset, holdMs);
+
+        // 40 px/s at the 150ms tick — slow and steady.
+        var advanced = offset + 6;
+        // The second copy's first character lands exactly where copy 1 started.
+        return advanced >= loopMax ? (loopMax, MarqueeSeamPauseMs) : (advanced, holdMs);
+    }
+
     private void SetupMarquee()
     {
         _marqueeActive = false;
@@ -599,30 +624,11 @@ public partial class MainWindow : Window
             return;
         if (_marqueeProbe++ % 4 == 0)
             Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility} st={_lastNp?.Status}");
-        if (_marqueeHoldMs > 0)
-        {
-            // Pause at the seam, then snap to offset 0 — frame-identical,
-            // so the next loop starts seamlessly.
-            _marqueeHoldMs -= 150;
-            if (_marqueeHoldMs <= 0)
-            {
-                _marqueeOffset = 0;
-                Canvas.SetLeft(TitleText, 0);
-            }
-            return;
-        }
-        var max = _titleLoopMax;
-        if (max <= 0)
-            return;
-        _marqueeOffset += 6; // 40 px/s at the 150ms tick — slow and steady
-        if (_marqueeOffset >= max)
-        {
-            // Second copy's first character is exactly where copy 1 started.
-            _marqueeOffset = max;
-            Canvas.SetLeft(TitleText, -max);
-            _marqueeHoldMs = MarqueeSeamPauseMs;
-            return;
-        }
+
+        var isPlaying = _lastNp?.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        (_marqueeOffset, _marqueeHoldMs) = NextMarquee(_marqueeOffset, _marqueeHoldMs, _titleLoopMax, isPlaying);
+        // Canvas.Left is always the negation of the offset, including during the
+        // seam hold where the offset is parked at loopMax.
         Canvas.SetLeft(TitleText, -_marqueeOffset);
     }
 
