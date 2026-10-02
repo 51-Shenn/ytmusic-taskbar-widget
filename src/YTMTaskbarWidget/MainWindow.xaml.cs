@@ -25,8 +25,6 @@ public partial class MainWindow : Window
     private bool _dragArmed;
     private Point _dragGrabOffset;
     private Point _downPos;
-    private DateTime _lastClickTime = DateTime.MinValue;
-    private Point _lastClickPos;
     private double _savedOffsetX;
     private System.Windows.Controls.Border[] _waveBars = Array.Empty<System.Windows.Controls.Border>();
     private int _waveTick;
@@ -148,8 +146,8 @@ public partial class MainWindow : Window
     private void DragZone_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         // Buttons keep their clicks; only the left drag handle starts a drag.
-        // NOTE: no mouse capture here — capturing on press breaks WPF's
-        // double-click tracking. Capture starts once real movement is seen.
+        // No capture on press — capture is taken once real movement is seen,
+        // so pressing without moving never swallows a button's click.
         if (IsOverButton(e.OriginalSource))
             return;
         if (!IsOverDragHandle(e.OriginalSource))
@@ -187,7 +185,6 @@ public partial class MainWindow : Window
         // hands off entirely so Button.Click fires normally.
         if (!_dragging && IsOverButton(e.OriginalSource))
             return;
-        var moved = _dragging && _dragArmed;
         if (_dragging)
         {
             _dragging = false;
@@ -197,26 +194,6 @@ public partial class MainWindow : Window
             var area = SystemParameters.WorkArea;
             _savedOffsetX = Left - (area.Left + (area.Width - Width) / 2);
             SaveOffset();
-        }
-        // Double left-click on the background (not a drag, not a button): open YTM.
-        // Tracked manually: mouse capture + handled tunneling make e.ClickCount unreliable.
-        if (!moved && !IsOverButton(e.OriginalSource))
-        {
-            var now = DateTime.UtcNow;
-            var pos = e.GetPosition(this);
-            var interval = (now - _lastClickTime).TotalMilliseconds;
-            var dist = (pos - _lastClickPos).Length;
-            const double doubleClickMs = 500;
-            if ((interval <= doubleClickMs && dist <= 4) || e.ClickCount >= 2)
-            {
-                _lastClickTime = DateTime.MinValue;
-                OpenBrowser();
-            }
-            else
-            {
-                _lastClickTime = now;
-                _lastClickPos = pos;
-            }
         }
         e.Handled = true;
     }
@@ -228,36 +205,6 @@ public partial class MainWindow : Window
             Application.Current.Shutdown();
             e.Handled = true;
         }
-    }
-
-    private void OpenBrowser()
-    {
-        // Never block the UI thread: WinRT/COM/foreground waits all run in
-        // the background; if anything hangs there, the widget stays alive.
-        _ = Task.Run(() =>
-        {
-            // Prefer the already-open YouTube Music tab playing this track
-            // over spawning a new tab; only open a fresh one if we can't.
-            try
-            {
-                var track = App.Smtc.CurrentTrack();
-                if (BrowserFocus.FocusYtmTab(track?.Title, track?.Artist, App.Smtc.CurrentSessionAumid()))
-                    return;
-            }
-            catch
-            {
-            }
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://music.youtube.com")
-                {
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-            }
-        });
     }
 
     private static bool IsOverButton(object? source)
