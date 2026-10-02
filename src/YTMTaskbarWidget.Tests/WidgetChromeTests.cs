@@ -31,7 +31,7 @@ public sealed class WidgetChromeTests
 
         var code = File.ReadAllText(FindMainWindowCode());
         Assert.Contains("if (!IsOverDragHandle(e.OriginalSource))", code);
-        Assert.Contains("private static bool IsOverDragHandle", code);
+        Assert.Contains("internal static bool IsOverDragHandle", code);
     }
 
     private static string FindMainWindowXaml()

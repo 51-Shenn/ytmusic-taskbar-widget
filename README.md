@@ -11,9 +11,9 @@ Built with WPF on .NET 8. No dependencies, no background service, no telemetry. 
 - **Synced lyrics** — fetched from [LRCLIB](https://lrclib.net) when a track changes. Falls back to a plain `♫` while the song intro runs, or `-` if no lyrics are found.
 - **Karaoke word highlighting** — each word lights up as it's sung. Uses real word-level timestamps when the LRC file has them, and estimates them when it doesn't.
 - **Horizontally scrolling lyrics** — the current line pans left as words light up, so the active word stays in view.
-- **Marquee title** — long `Title - Artist` strings scroll instead of being cut off, pausing briefly at the seam.
+- **Marquee title** — long `Title - Artist` strings scroll instead of being cut off, pausing briefly at the seam. Pause playback and the scroll stops and rewinds to the start.
 - **Sound-wave indicator** — a 4-bar animation that runs while something is playing.
-- **Auto-hides** — the widget slides away after ~2 seconds with nothing playing, and comes back on its own when a track starts.
+- **Never hides itself** — the widget stays in the taskbar whether or not anything is playing. Your last track stays on screen until you quit it.
 - **Stays on top** — re-pins itself above other windows as they gain focus, so it never disappears behind your apps.
 - **Starts with Windows** — optional, selected during install.
 

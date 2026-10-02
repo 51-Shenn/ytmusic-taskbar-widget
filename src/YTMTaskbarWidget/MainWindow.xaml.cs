@@ -19,7 +19,6 @@ public partial class MainWindow : Window
     private string _key = string.Empty;
     private string _lastLyricKey = string.Empty;
     private bool _refreshing;
-    private int _nullStreak;
     private int _tickCount;
     private bool _dragging;
     private bool _dragArmed;
@@ -207,7 +206,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool IsOverButton(object? source)
+    internal static bool IsOverButton(object? source)
     {
         // Icon Paths live in the button template, where the logical-tree walk
         // can miss them — climb the visual tree as well.
@@ -215,22 +214,30 @@ public partial class MainWindow : Window
         {
             if (d is System.Windows.Controls.Button)
                 return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
-                ?? LogicalTreeHelper.GetParent(d);
+            d = GetParentSafe(d);
         }
         return false;
     }
 
-    private static bool IsOverDragHandle(object? source)
+    internal static bool IsOverDragHandle(object? source)
     {
         for (var d = source as DependencyObject; d is not null;)
         {
             if (d is FrameworkElement { Name: "DragHandle" })
                 return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
-                ?? LogicalTreeHelper.GetParent(d);
+            d = GetParentSafe(d);
         }
         return false;
+    }
+
+    private static DependencyObject? GetParentSafe(DependencyObject d)
+    {
+        // ContentElements (Run, Span, Hyperlink...) are DependencyObjects but NOT
+        // Visuals — VisualTreeHelper.GetParent throws on them. The lyric line is
+        // built from Runs, so a click there must walk the logical tree instead.
+        return d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+            ? System.Windows.Media.VisualTreeHelper.GetParent(d)
+            : LogicalTreeHelper.GetParent(d);
     }
 
     private void LoadOffset()
@@ -313,16 +320,12 @@ public partial class MainWindow : Window
         var np = await App.Smtc.GetNowPlayingAsync();
         if (np is null)
         {
-            // Track transitions briefly report null — only hide after ~2s of silence.
-            _nullStreak++;
-            if (_nullStreak >= 4)
-                Visibility = Visibility.Collapsed;
+            // Session gone (tab closed / no media app). Keep the last track on
+            // screen — the widget is never hidden; the user quits it with a
+            // double-right-click instead.
             return;
         }
-        _nullStreak = 0;
         _lastNp = np;
-
-        Visibility = Visibility.Visible;
         var playing = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         PlayGlyph.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
         PauseGlyph.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
@@ -525,6 +528,31 @@ public partial class MainWindow : Window
 
     internal static string MarqueeLoopText(string title) => $"{title}          {title}";
 
+    internal static (double Offset, int HoldMs) NextMarquee(
+        double offset, int holdMs, double loopMax, bool isPlaying)
+    {
+        // Not playing (paused, stopped, or no session): kill the infinite loop
+        // and snap the title back to where it starts.
+        if (!isPlaying)
+            return (0, 0);
+
+        if (holdMs > 0)
+        {
+            // Hold at the seam, then rewind to 0 — frame-identical, so the next
+            // loop starts seamlessly.
+            var remaining = holdMs - 150;
+            return remaining <= 0 ? (0, 0) : (offset, remaining);
+        }
+
+        if (loopMax <= 0)
+            return (offset, holdMs);
+
+        // 40 px/s at the 150ms tick — slow and steady.
+        var advanced = offset + 6;
+        // The second copy's first character lands exactly where copy 1 started.
+        return advanced >= loopMax ? (loopMax, MarqueeSeamPauseMs) : (advanced, holdMs);
+    }
+
     private void SetupMarquee()
     {
         _marqueeActive = false;
@@ -594,32 +622,13 @@ public partial class MainWindow : Window
         }
         if (!_marqueeActive)
             return;
-        if (_marqueeProbe++ >= 0)
-            Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility}");
-        if (_marqueeHoldMs > 0)
-        {
-            // Pause at the seam, then snap to offset 0 — frame-identical,
-            // so the next loop starts seamlessly.
-            _marqueeHoldMs -= 150;
-            if (_marqueeHoldMs <= 0)
-            {
-                _marqueeOffset = 0;
-                Canvas.SetLeft(TitleText, 0);
-            }
-            return;
-        }
-        var max = _titleLoopMax;
-        if (max <= 0)
-            return;
-        _marqueeOffset += 6; // 40 px/s at the 150ms tick — slow and steady
-        if (_marqueeOffset >= max)
-        {
-            // Second copy's first character is exactly where copy 1 started.
-            _marqueeOffset = max;
-            Canvas.SetLeft(TitleText, -max);
-            _marqueeHoldMs = MarqueeSeamPauseMs;
-            return;
-        }
+        if (_marqueeProbe++ % 4 == 0)
+            Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility} st={_lastNp?.Status}");
+
+        var isPlaying = _lastNp?.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        (_marqueeOffset, _marqueeHoldMs) = NextMarquee(_marqueeOffset, _marqueeHoldMs, _titleLoopMax, isPlaying);
+        // Canvas.Left is always the negation of the offset, including during the
+        // seam hold where the offset is parked at loopMax.
         Canvas.SetLeft(TitleText, -_marqueeOffset);
     }
 
@@ -630,13 +639,23 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    internal static void Log(string msg)
+    internal const long MaxLogBytes = 5 * 1024 * 1024;
+
+    internal static string LogPath =>
+        Path.Combine(Path.GetTempPath(), "YTMWidget-debug.log");
+
+    internal static void Log(string msg) => LogTo(LogPath, msg);
+
+    internal static void LogTo(string path, string msg)
     {
         try
         {
-            File.AppendAllText(
-                Path.Combine(Path.GetTempPath(), "YTMWidget-debug.log"),
-                $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
+            // The marquee probe logs every tick, so without a cap this file grows
+            // without bound (it reached 25MB). Keep the newest history instead.
+            var info = new FileInfo(path);
+            if (info.Exists && info.Length > MaxLogBytes)
+                File.WriteAllText(path, string.Empty);
+            File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
         }
         catch
         {
