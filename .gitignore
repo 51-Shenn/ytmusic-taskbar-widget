@@ -47,6 +47,9 @@ coverage*/
 ## Publish / Single-file
 *.exe.manifest
 
+## Inno Setup
+installer/Output/
+
 ## OS
 .DS_Store
 Thumbs.db
