@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -30,6 +31,8 @@ public partial class MainWindow : Window
     private int _waveTick;
     private Native.WinEventDelegate? _winEventProc;
     private double _titleNatural;
+    private double _titleLoopMax;
+    private string _displayTitle = string.Empty;
     private bool _marqueeActive;
     private bool _marqueePending;
     private double _marqueeOffset;
@@ -64,6 +67,7 @@ public partial class MainWindow : Window
         {
             UpdateWave();
             UpdateLyricLine();
+            UpdateMarquee();
         };
         _lyricTimer.Start();
         await RefreshAsync();
@@ -116,15 +120,17 @@ public partial class MainWindow : Window
     private void PlaceBottomCenter()
     {
         // Sit INSIDE the taskbar: WorkArea.Bottom is the taskbar's top edge,
-        // so center the 44px pill within the taskbar strip below it.
-        const double ww = 340, wh = 44;
+        // so center the pill within the taskbar strip below it.
+        const double ww = 352;
+        var wh = TaskbarPositioner.RequiredWindowHeight(contentHeight: 44, verticalMargin: 0, shadowBreathingRoom: 6);
         var area = SystemParameters.WorkArea;
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         Width = ww;
         Height = wh;
         LoadOffset();
-        Left = ClampLeft(area.Left + (area.Width - ww) / 2 + _savedOffsetX, area, ww);
-        Top = area.Bottom + Math.Max(0, (taskbarHeight - wh) / 2);
+        var pos = TaskbarPositioner.CalcBottomCenter(area.Width, SystemParameters.PrimaryScreenHeight, taskbarHeight, ww, wh, _savedOffsetX);
+        Left = ClampLeft(area.Left + pos.Left, area, ww);
+        Top = pos.Top;
     }
 
     private static double ClampLeft(double left, Rect area, double ww)
@@ -166,7 +172,7 @@ public partial class MainWindow : Window
         var taskbarHeight = SystemParameters.PrimaryScreenHeight - area.Bottom;
         // Lock vertically inside the taskbar strip; let the user slide horizontally.
         Left = ClampLeft(cursor.X - _dragGrabOffset.X, area, Width);
-        Top = area.Bottom + Math.Max(0, (taskbarHeight - Height) / 2);
+        Top = TaskbarPositioner.CalcBottomCenter(area.Width, SystemParameters.PrimaryScreenHeight, taskbarHeight, Width, Height, 0).Top;
         e.Handled = true;
     }
 
@@ -353,7 +359,6 @@ public partial class MainWindow : Window
         _lastNp = np;
 
         Visibility = Visibility.Visible;
-        TitleText.Text = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
         var playing = np.Status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         PlayGlyph.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
         PauseGlyph.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
@@ -387,6 +392,10 @@ public partial class MainWindow : Window
             _key = key;
             _lines = new List<LrcLine>();
             LyricText.Text = string.Empty;
+            // Single copy of the title; SetupMarquee may double it for the loop.
+            _displayTitle = string.IsNullOrWhiteSpace(np.Artist) ? np.Title : $"{np.Title} - {np.Artist}";
+            TitleText.Text = _displayTitle;
+            SetupMarquee();
             try
             {
                 var res = await App.Lyrics.GetAsync(np.Title, np.Artist, null);
@@ -398,7 +407,6 @@ public partial class MainWindow : Window
             {
                 Log($"fetch FAILED title='{np.Title}' artist='{np.Artist}' err={ex.GetType().Name}: {ex.Message}");
             }
-            SetupMarquee();
         }
 
         var cur = LrcParser.CurrentLine(_lines, np.EffectivePosition);
@@ -455,14 +463,36 @@ public partial class MainWindow : Window
 
     private static readonly System.Windows.Media.SolidColorBrush UpcomingBrush = CreateFrozenBrush(0x9A, 0x9A, 0x9A);
 
+    internal static double MarqueeLoopDistance(double titleWidth, double duplicatedWidth)
+    {
+        if (titleWidth <= 0 || duplicatedWidth <= titleWidth)
+            return 0;
+
+        return duplicatedWidth - titleWidth;
+    }
+
+    internal static double MarqueeRenderWidth(double titleWidth, double duplicatedWidth)
+    {
+        if (MarqueeLoopDistance(titleWidth, duplicatedWidth) <= 0)
+            return double.NaN;
+
+        return duplicatedWidth;
+    }
+
+    internal const int MarqueeSeamPauseMs = 4000;
+
+    internal static string MarqueeLoopText(string title) => $"{title}          {title}";
+
     private void SetupMarquee()
     {
         _marqueeActive = false;
         _marqueePending = false;
         _marqueeOffset = 0;
         _marqueeHoldMs = 0;
-        TitleShift.X = 0;
+        Canvas.SetLeft(TitleText, 0);
+        TitleText.Width = double.NaN;
         TitleText.TextTrimming = TextTrimming.None;
+        TitleText.Text = _displayTitle; // normalize to a single copy
         TitleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _titleNatural = TitleText.DesiredSize.Width;
         var avail = TitleClip.ActualWidth;
@@ -470,16 +500,47 @@ public partial class MainWindow : Window
         {
             // Not laid out yet — retry on the next timer tick.
             _marqueePending = true;
+            Log($"marquee pending natural={_titleNatural:F1} (clip not laid out)");
             return;
         }
         if (_titleNatural > avail + 0.5)
         {
+            // Seamless loop: render the title twice with a small gap. Scrolling
+            // exactly one copy + gap puts the second copy's first character at
+            // the original start position, where the frame is identical to
+            // offset 0 — the 2s pause and snap-back are invisible.
+            TitleText.Text = MarqueeLoopText(_displayTitle);
+            TitleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var duplicatedWidth = TitleText.DesiredSize.Width;
+            _titleLoopMax = MarqueeLoopDistance(_titleNatural, duplicatedWidth);
+            if (_titleLoopMax <= 0)
+            {
+                TitleText.Width = double.NaN;
+                TitleText.Text = _displayTitle;
+                TitleText.TextTrimming = TextTrimming.CharacterEllipsis;
+                return;
+            }
+            TitleText.Width = MarqueeRenderWidth(_titleNatural, duplicatedWidth);
             _marqueeActive = true;
+            Log($"marquee active natural={_titleNatural:F1} avail={avail:F1} loop={_titleLoopMax:F1} title='{_displayTitle}'");
+            try
+            {
+                var tl = TitleClip.PointToScreen(new System.Windows.Point(0, 0));
+                var sc = TitleClip.PointToScreen(new System.Windows.Point(avail, 0));
+                var th = Thumb.PointToScreen(new System.Windows.Point(0, 0));
+                var te = TitleText.PointToScreen(new System.Windows.Point(TitleText.ActualWidth, 0));
+                Log($"geom clip=({tl.X:F0},{tl.Y:F0})->({sc.X:F0}) thumb=({th.X:F0}) txtRight={te.X:F0} txtActW={TitleText.ActualWidth:F1} dpiScale={(sc.X - tl.X) / avail:F2}");
+            }
+            catch (System.Exception ex) { Log($"geom err {ex.Message}"); }
             return;
         }
+        _titleLoopMax = 0;
         // Fits: static with ellipsis as a safety net.
+        Log($"marquee fits natural={_titleNatural:F1} avail={avail:F1} title='{_displayTitle}'");
         TitleText.TextTrimming = TextTrimming.CharacterEllipsis;
     }
+
+    private int _marqueeProbe;
 
     private void UpdateMarquee()
     {
@@ -491,30 +552,33 @@ public partial class MainWindow : Window
         }
         if (!_marqueeActive)
             return;
+        if (_marqueeProbe++ >= 0)
+            Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility}");
         if (_marqueeHoldMs > 0)
         {
-            // Dwell at the end, then loop back to the start.
+            // Pause at the seam, then snap to offset 0 — frame-identical,
+            // so the next loop starts seamlessly.
             _marqueeHoldMs -= 150;
             if (_marqueeHoldMs <= 0)
             {
                 _marqueeOffset = 0;
-                TitleShift.X = 0;
+                Canvas.SetLeft(TitleText, 0);
             }
             return;
         }
-        var avail = TitleClip.ActualWidth;
-        var max = _titleNatural - avail + 24;
-        if (avail <= 0 || max <= 0)
+        var max = _titleLoopMax;
+        if (max <= 0)
             return;
-        _marqueeOffset += 9; // 60 px/s at the 150ms tick
+        _marqueeOffset += 6; // 40 px/s at the 150ms tick — slow and steady
         if (_marqueeOffset >= max)
         {
+            // Second copy's first character is exactly where copy 1 started.
             _marqueeOffset = max;
-            TitleShift.X = -max;
-            _marqueeHoldMs = 2500;
+            Canvas.SetLeft(TitleText, -max);
+            _marqueeHoldMs = MarqueeSeamPauseMs;
             return;
         }
-        TitleShift.X = -_marqueeOffset;
+        Canvas.SetLeft(TitleText, -_marqueeOffset);
     }
 
     private static System.Windows.Media.SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
@@ -524,7 +588,7 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    private static void Log(string msg)
+    internal static void Log(string msg)
     {
         try
         {

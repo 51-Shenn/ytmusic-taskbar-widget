@@ -3,32 +3,151 @@ using System.Runtime.InteropServices;
 namespace YTMTaskbarWidget.Services;
 public static class BrowserFocus
 {
+    // Session-only cache of the window that most recently hosted the playing
+    // YTM tab. Browser tab identities are not exposed to any OS API (the tab
+    // strip is UIA-invisible and Chrome's tab IDs need --remote-debugging),
+    // so the window handle is the closest available "tab id". Handles die
+    // with their window, so the cache is never persisted and is discarded
+    // as soon as the handle disappears from the current window list.
+    private static IntPtr _lastYtmHwnd;
+
+    // Serializes callers: concurrent tab-search sweeps would interleave
+    // synthetic keystrokes and break both.
+    private static readonly object Sync = new();
+
     public static bool FocusYtmTab(string? trackTitle, string? artist, string? aumid)
     {
-        var windows = BrowserWindows(aumid);
-        if (windows.Count == 0)
-            return false;
-        // 1) The track's tab is already the active tab of some window.
-        foreach (var hwnd in windows)
+        lock (Sync)
         {
-            var title = GetTitle(hwnd);
-            if (TabNameMatches(trackTitle, artist, title))
-                return Focus(hwnd);
-        }
-        // 2) Shell window registry (works where the shell exposes browser tabs).
-        try { if (FocusShellTab()) return true; } catch { }
-        // 3) Background tab: tab-search popup per window — Ctrl+Shift+A, type
-        //    "title artist", Enter, then verify the window title changed. Try
-        //    every window so multiple profiles/windows are all covered.
-        if (!string.IsNullOrWhiteSpace(trackTitle))
-        {
+            var windows = BrowserWindows(aumid);
+            if (_lastYtmHwnd != IntPtr.Zero && !windows.Contains(_lastYtmHwnd))
+            {
+                _lastYtmHwnd = IntPtr.Zero; // cached window was closed
+                MainWindow.Log("focus cache dropped (window closed)");
+            }
+
+            // 1) The track's tab is already the active tab of some window —
+            //    cached window first, since it hosted the track last time.
+            if (_lastYtmHwnd != IntPtr.Zero &&
+                TabNameMatches(trackTitle, artist, GetTitle(_lastYtmHwnd)))
+            {
+                MainWindow.Log($"focus cache hit hwnd=0x{_lastYtmHwnd.ToInt64():X}");
+                if (Focus(_lastYtmHwnd))
+                    return true;
+            }
             foreach (var hwnd in windows)
             {
-                try { if (FocusViaTabSearch(hwnd, trackTitle, artist)) return true; } catch { }
+                if (!TabNameMatches(trackTitle, artist, GetTitle(hwnd)))
+                    continue;
+                MainWindow.Log($"focus active-tab match hwnd=0x{hwnd.ToInt64():X}");
+                _lastYtmHwnd = hwnd; // identity confirmed even if focusing fails
+                if (Focus(hwnd))
+                    return true;
             }
+            if (windows.Count == 0)
+                return false;
+
+            // 2) Shell window registry (works where the shell exposes browser tabs).
+            try
+            {
+                if (FocusShellTab())
+                {
+                    MainWindow.Log("focus shell registry match");
+                    return true;
+                }
+            }
+            catch { }
+
+            // 3) Background tab: tab-search popup per window — Ctrl+Shift+A,
+            //    type a query, Enter, verify. The query ladder starts with the
+            //    track title (verified against the track) and falls back to
+            //    player-name keywords, because some players never put the song
+            //    into the tab title (Spotify web keeps a generic one), which is
+            //    exactly the "music running in the background" case. Cached
+            //    window first, then every other window.
+            foreach (var hwnd in CachedFirst(windows))
+            {
+                foreach (var (query, verify, titleVerified) in BuildQueryVariants(trackTitle, artist))
+                {
+                    try
+                    {
+                        if (!FocusViaTabSearch(hwnd, query, verify))
+                            continue;
+                        if (titleVerified)
+                        {
+                            MainWindow.Log($"focus tab-search ok hwnd=0x{hwnd.ToInt64():X} (cache set) query='{query}'");
+                            _lastYtmHwnd = hwnd;
+                        }
+                        else
+                        {
+                            MainWindow.Log($"focus keyword jump hwnd=0x{hwnd.ToInt64():X} query='{query}'");
+                            _lastGoodKeyword = query;
+                        }
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        MainWindow.Log($"focus tab-search threw hwnd=0x{hwnd.ToInt64():X} {ex.GetType().Name}");
+                    }
+                }
+            }
+
+            // 4) Last resort: bring the first browser window forward as-is.
+            MainWindow.Log($"focus last-resort hwnd=0x{windows[0].ToInt64():X}");
+            return Focus(windows[0]);
         }
-        // 4) Last resort: bring the first browser window forward as-is.
-        return Focus(windows[0]);
+    }
+
+    private static IEnumerable<IntPtr> CachedFirst(List<IntPtr> windows)
+    {
+        if (_lastYtmHwnd != IntPtr.Zero)
+            yield return _lastYtmHwnd;
+        foreach (var hwnd in windows)
+        {
+            if (hwnd != _lastYtmHwnd)
+                yield return hwnd;
+        }
+    }
+
+    // Session memory of the keyword query that last found the playing tab,
+    // tried before the hardcoded player keywords on the next double-click.
+    private static string? _lastGoodKeyword;
+
+    private static List<(string Query, Func<string, bool> Verify, bool TitleVerified)> BuildQueryVariants(
+        string? trackTitle, string? artist)
+    {
+        var list = new List<(string Query, Func<string, bool> Verify, bool TitleVerified)>();
+        void Add(string? query, Func<string, bool> verify, bool titleVerified)
+        {
+            if (string.IsNullOrWhiteSpace(query) || list.Any(v => v.Query == query))
+                return;
+            list.Add((query, verify, titleVerified));
+        }
+
+        if (!string.IsNullOrWhiteSpace(trackTitle))
+        {
+            Func<string, bool> matches = t => TabNameMatches(trackTitle, artist, t);
+            Add(BuildSearchQuery(trackTitle, artist!), matches, true);
+            Add(trackTitle, matches, true);
+            Add(artist, matches, true);
+        }
+        // Player keywords: tab-search matches tab titles, not playback state,
+        // so identify the player instead when the song never appears in titles.
+        // "spotify" needs "web player" too — an unrelated tab can contain
+        // "spotify" in a login-code subject line.
+        if (!string.IsNullOrWhiteSpace(_lastGoodKeyword))
+            Add(_lastGoodKeyword, KeywordVerify(_lastGoodKeyword!), false);
+        Add("spotify", KeywordVerify("spotify"), false);
+        Add("youtube music", KeywordVerify("youtube music"), false);
+        return list;
+    }
+
+    private static Func<string, bool> KeywordVerify(string keyword)
+    {
+        if (keyword.Equals("spotify", StringComparison.OrdinalIgnoreCase))
+            return t => t.Contains("spotify", StringComparison.OrdinalIgnoreCase)
+                     && t.Contains("web player", StringComparison.OrdinalIgnoreCase);
+        return t => t.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
     public static string BuildSearchQuery(string trackTitle, string? artist)
@@ -53,7 +172,7 @@ public static class BrowserFocus
         return false;
     }
 
-    private static bool FocusViaTabSearch(IntPtr hwnd, string trackTitle, string? artist)
+    private static bool FocusViaTabSearch(IntPtr hwnd, string query, Func<string, bool> verify)
     {
         if (IsIconic(hwnd))
             ShowWindow(hwnd, 9 /*SW_RESTORE*/);
@@ -68,8 +187,19 @@ public static class BrowserFocus
             keybd_event(0x12, 0, 2 /*KEYEVENTF_KEYUP*/, 0);
         }
         if (!WaitForeground(hwnd, 800))
+        {
+            MainWindow.Log($"ts hwnd=0x{hwnd.ToInt64():X} failed to come foreground");
             return false;
+        }
         Thread.Sleep(120);
+
+        // Already on a tab that satisfies the verifier (e.g. the playing
+        // tab is active but its title differs from the track): nothing to search.
+        if (verify(GetTitle(hwnd)))
+        {
+            MainWindow.Log($"ts hwnd=0x{hwnd.ToInt64():X} pre-match query='{query}' title='{GetTitle(hwnd)}'");
+            return true;
+        }
 
         // Ctrl+Shift+A → tab search popup (Chrome / Edge / Brave).
         SendVk(0x11, true);   // Ctrl
@@ -80,8 +210,7 @@ public static class BrowserFocus
         SendVk(0x11, false);
         Thread.Sleep(220);
 
-        // Type "title artist" into the auto-focused search box.
-        var query = BuildSearchQuery(trackTitle, artist);
+        // Type the query into the auto-focused search box.
         var typed = 0;
         foreach (var ch in query)
         {
@@ -91,22 +220,29 @@ public static class BrowserFocus
             typed++;
         }
         if (typed == 0)
+        {
+            MainWindow.Log($"ts hwnd=0x{hwnd.ToInt64():X} empty query '{query}'");
             return false;
+        }
         Thread.Sleep(180);
 
         // Enter → activate the top match, then verify the window actually
-        // switched to the track's tab before claiming success.
+        // switched to the expected tab before claiming success.
         SendVk(0x0D, true);
         SendVk(0x0D, false);
         for (var waited = 0; waited < 700; waited += 25)
         {
             Thread.Sleep(25);
-            if (TabNameMatches(trackTitle, artist, GetTitle(hwnd)))
+            if (verify(GetTitle(hwnd)))
+            {
+                MainWindow.Log($"ts hwnd=0x{hwnd.ToInt64():X} ok query='{query}' title='{GetTitle(hwnd)}'");
                 return true;
+            }
         }
 
         // No match in this window: dismiss the popup and let the caller
         // try the next window.
+        MainWindow.Log($"ts hwnd=0x{hwnd.ToInt64():X} no match query='{query}' afterTitle='{GetTitle(hwnd)}'");
         SendVk(0x1B, true);
         SendVk(0x1B, false);
         Thread.Sleep(120);

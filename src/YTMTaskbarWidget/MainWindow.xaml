@@ -1,7 +1,7 @@
 <Window x:Class="YTMTaskbarWidget.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="YTM Taskbar Widget" Height="44" Width="340"
+        Title="YTM Taskbar Widget" Height="56" Width="352"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" Topmost="True" ShowInTaskbar="False"
         ResizeMode="NoResize" Top="1000" Left="500">
@@ -50,31 +50,34 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="PillChrome" TargetType="Border">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Effect" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#33FFFFFF" Offset="0.0"/>
+                                <GradientStop Color="#40262626" Offset="0.35"/>
+                                <GradientStop Color="#30101010" Offset="1.0"/>
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <!-- Liquid glass pill (fits inside 48px taskbar, draggable along it) -->
-    <Border x:Name="DragZone" CornerRadius="10" Padding="0" Cursor="SizeAll"
+    <Border x:Name="DragZone" Style="{StaticResource PillChrome}" CornerRadius="10" Padding="0" Cursor="SizeAll" Margin="6,10,6,2"
             PreviewMouseLeftButtonDown="DragZone_PreviewMouseLeftButtonDown"
             PreviewMouseMove="DragZone_PreviewMouseMove"
             PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp"
             PreviewMouseRightButtonDown="DragZone_PreviewMouseRightButtonDown">
-        <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#B2323232" Offset="0.0"/>
-                <GradientStop Color="#A8262626" Offset="0.45"/>
-                <GradientStop Color="#991D1D1D" Offset="1.0"/>
-            </LinearGradientBrush>
-        </Border.Background>
-        <Border.BorderBrush>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#59FFFFFF" Offset="0.0"/>
-                <GradientStop Color="#1FFFFFFF" Offset="1.0"/>
-            </LinearGradientBrush>
-        </Border.BorderBrush>
-        <Border.BorderThickness>1</Border.BorderThickness>
-        <Border.Effect>
-            <DropShadowEffect Color="Black" Opacity="0.35" BlurRadius="8" ShadowDepth="1"/>
-        </Border.Effect>
         <Grid Margin="4,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -107,16 +110,12 @@
                 <Image x:Name="Thumb" Width="32" Height="32" Stretch="Uniform"/>
             </Border>
 
-            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
-                <Grid x:Name="TitleClip" ClipToBounds="True">
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0">
+                <Canvas x:Name="TitleClip" ClipToBounds="True" Height="16">
                     <TextBlock x:Name="TitleText" Text="Nothing playing" Foreground="White"
-                               FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center">
-                        <TextBlock.RenderTransform>
-                            <TranslateTransform x:Name="TitleShift" X="0"/>
-                        </TextBlock.RenderTransform>
-                    </TextBlock>
-                </Grid>
+                                FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                Canvas.Left="0" Canvas.Top="0"/>
+                </Canvas>
                 <TextBlock x:Name="LyricText" Text="" Foreground="#FF9A9A9A"
                            FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
             </StackPanel>
