@@ -15,4 +15,8 @@
     <Description>YouTube Music taskbar widget (SMTC + synced lyrics overlay).</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="YTMTaskbarWidget.Tests" />
+  </ItemGroup>
+
 </Project>
