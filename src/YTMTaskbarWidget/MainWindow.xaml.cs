@@ -207,7 +207,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool IsOverButton(object? source)
+    internal static bool IsOverButton(object? source)
     {
         // Icon Paths live in the button template, where the logical-tree walk
         // can miss them — climb the visual tree as well.
@@ -215,22 +215,30 @@ public partial class MainWindow : Window
         {
             if (d is System.Windows.Controls.Button)
                 return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
-                ?? LogicalTreeHelper.GetParent(d);
+            d = GetParentSafe(d);
         }
         return false;
     }
 
-    private static bool IsOverDragHandle(object? source)
+    internal static bool IsOverDragHandle(object? source)
     {
         for (var d = source as DependencyObject; d is not null;)
         {
             if (d is FrameworkElement { Name: "DragHandle" })
                 return true;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
-                ?? LogicalTreeHelper.GetParent(d);
+            d = GetParentSafe(d);
         }
         return false;
+    }
+
+    private static DependencyObject? GetParentSafe(DependencyObject d)
+    {
+        // ContentElements (Run, Span, Hyperlink...) are DependencyObjects but NOT
+        // Visuals — VisualTreeHelper.GetParent throws on them. The lyric line is
+        // built from Runs, so a click there must walk the logical tree instead.
+        return d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+            ? System.Windows.Media.VisualTreeHelper.GetParent(d)
+            : LogicalTreeHelper.GetParent(d);
     }
 
     private void LoadOffset()
