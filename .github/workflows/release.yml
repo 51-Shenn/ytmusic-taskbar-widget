@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Read version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Tag: $tag  Version: $version"
+
+      - name: Publish single-file exe
+        shell: pwsh
+        run: ./build/publish.ps1
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Find ISCC.exe
+        id: iscc
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LocalAppData\Programs\Inno Setup 6\ISCC.exe"
+          )
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) { throw "ISCC.exe not found" }
+          "path=$found" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Using ISCC: $found"
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          & "${{ steps.iscc.outputs.path }}" `
+            /DMyAppVersion=${{ steps.ver.outputs.version }} `
+            installer\YTMTaskbarWidget.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Make zip
+        shell: pwsh
+        run: Compress-Archive -Path publish\YTMTaskbarWidget.exe -DestinationPath YTMTaskbarWidget-${{ steps.ver.outputs.version }}-win-x64.zip -Force
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer/Output/YTMTaskbarWidget-Setup-${{ steps.ver.outputs.version }}.exe
+            YTMTaskbarWidget-${{ steps.ver.outputs.version }}-win-x64.zip
+          generate_release_notes: true
