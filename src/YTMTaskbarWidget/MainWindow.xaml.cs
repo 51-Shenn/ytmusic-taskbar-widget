@@ -597,8 +597,8 @@ public partial class MainWindow : Window
         }
         if (!_marqueeActive)
             return;
-        if (_marqueeProbe++ >= 0)
-            Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility}");
+        if (_marqueeProbe++ % 4 == 0)
+            Log($"mqprobe x={Canvas.GetLeft(TitleText):F1} len={TitleText.Text.Length} trim={TitleText.TextTrimming} loop={_titleLoopMax:F1} hold={_marqueeHoldMs} off={_marqueeOffset:F1} vis={Visibility} st={_lastNp?.Status}");
         if (_marqueeHoldMs > 0)
         {
             // Pause at the seam, then snap to offset 0 — frame-identical,
@@ -633,13 +633,23 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    internal static void Log(string msg)
+    internal const long MaxLogBytes = 5 * 1024 * 1024;
+
+    internal static string LogPath =>
+        Path.Combine(Path.GetTempPath(), "YTMWidget-debug.log");
+
+    internal static void Log(string msg) => LogTo(LogPath, msg);
+
+    internal static void LogTo(string path, string msg)
     {
         try
         {
-            File.AppendAllText(
-                Path.Combine(Path.GetTempPath(), "YTMWidget-debug.log"),
-                $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
+            // The marquee probe logs every tick, so without a cap this file grows
+            // without bound (it reached 25MB). Keep the newest history instead.
+            var info = new FileInfo(path);
+            if (info.Exists && info.Length > MaxLogBytes)
+                File.WriteAllText(path, string.Empty);
+            File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
         }
         catch
         {
