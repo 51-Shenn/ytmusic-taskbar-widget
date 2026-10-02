@@ -144,10 +144,12 @@ public partial class MainWindow : Window
 
     private void DragZone_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // Buttons keep their clicks — only start a drag from the pill background.
+        // Buttons keep their clicks; only the left drag handle starts a drag.
         // NOTE: no mouse capture here — capturing on press breaks WPF's
         // double-click tracking. Capture starts once real movement is seen.
         if (IsOverButton(e.OriginalSource))
+            return;
+        if (!IsOverDragHandle(e.OriginalSource))
             return;
         _dragging = true;
         _dragArmed = false;
@@ -262,6 +264,18 @@ public partial class MainWindow : Window
         for (var d = source as DependencyObject; d is not null;)
         {
             if (d is System.Windows.Controls.Button)
+                return true;
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d)
+                ?? LogicalTreeHelper.GetParent(d);
+        }
+        return false;
+    }
+
+    private static bool IsOverDragHandle(object? source)
+    {
+        for (var d = source as DependencyObject; d is not null;)
+        {
+            if (d is FrameworkElement { Name: "DragHandle" })
                 return true;
             d = System.Windows.Media.VisualTreeHelper.GetParent(d)
                 ?? LogicalTreeHelper.GetParent(d);

@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="YTM Taskbar Widget" Height="56" Width="352"
         WindowStyle="None" AllowsTransparency="True"
-        Background="Transparent" Topmost="True" ShowInTaskbar="False"
-        ResizeMode="NoResize" Top="1000" Left="500">
+         Background="Transparent" Topmost="True" ShowInTaskbar="False"
+         ResizeMode="NoResize" Top="1000" Left="500">
     <Window.Resources>
         <!-- Transparent circular icon button (prev / next) -->
         <Style x:Key="GlassIconButton" TargetType="Button">
@@ -61,19 +61,28 @@
                     <Setter Property="Background">
                         <Setter.Value>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#33FFFFFF" Offset="0.0"/>
-                                <GradientStop Color="#22FFFFFF" Offset="0.35"/>
-                                <GradientStop Color="#14FFFFFF" Offset="1.0"/>
+                                <GradientStop Color="#22FFFFFF" Offset="0.0"/>
+                                <GradientStop Color="#18FFFFFF" Offset="0.35"/>
+                                <GradientStop Color="#0FFFFFFF" Offset="1.0"/>
                             </LinearGradientBrush>
                         </Setter.Value>
                     </Setter>
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="DragHandleChrome" TargetType="Border">
+            <Setter Property="Background" Value="#33FFFFFF"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                    <Setter Property="Background" Value="#77FFFFFF"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <!-- Liquid glass pill (fits inside 48px taskbar, draggable along it) -->
-    <Border x:Name="DragZone" Style="{StaticResource PillChrome}" CornerRadius="10" Padding="0" Cursor="SizeAll" Margin="6,10,6,2"
+    <Border x:Name="DragZone" Style="{StaticResource PillChrome}" CornerRadius="10" Padding="0" Margin="10,10,10,2"
             PreviewMouseLeftButtonDown="DragZone_PreviewMouseLeftButtonDown"
             PreviewMouseMove="DragZone_PreviewMouseMove"
             PreviewMouseLeftButtonUp="DragZone_PreviewMouseLeftButtonUp"
@@ -82,13 +91,23 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
+            <Border x:Name="DragHandle" Grid.Column="0"
+                    Width="10" Height="20"
+                    VerticalAlignment="Center" Margin="-3,0,4,0"
+                    Background="Transparent" Cursor="SizeAll">
+                <Border Width="3" Height="16" CornerRadius="1.5"
+                        Style="{StaticResource DragHandleChrome}"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            </Border>
+
             <!-- Dynamic-Island style soundwave (left of album art), centered on its axis -->
-            <Grid Grid.Column="0" Width="18" Height="14" VerticalAlignment="Center"
-                  Margin="14,0,12,0" IsHitTestVisible="False">
+            <Grid Grid.Column="1" Width="18" Height="14" VerticalAlignment="Center"
+                  Margin="6,0,12,0" IsHitTestVisible="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Border x:Name="WaveBar0" Width="2" Height="2" CornerRadius="1"
                             Background="#FF30D158" Margin="1.5,0" VerticalAlignment="Center"/>
@@ -102,7 +121,7 @@
             </Grid>
 
             <!-- Rounded thumbnail -->
-            <Border Grid.Column="1" Width="32" Height="32" CornerRadius="5" VerticalAlignment="Center"
+            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="5" VerticalAlignment="Center"
                     Background="#33FFFFFF">
                 <Border.Clip>
                     <RectangleGeometry Rect="0,0,32,32" RadiusX="5" RadiusY="5"/>
@@ -110,7 +129,7 @@
                 <Image x:Name="Thumb" Width="32" Height="32" Stretch="Uniform"/>
             </Border>
 
-            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0">
+            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="12,0">
                 <Canvas x:Name="TitleClip" ClipToBounds="True" Height="16">
                     <TextBlock x:Name="TitleText" Text="Nothing playing" Foreground="White"
                                 FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
@@ -120,7 +139,7 @@
                            FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
             </StackPanel>
 
-            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PrevBtn" Style="{StaticResource GlassIconButton}">
                     <Path Data="M6 6h2v12H6V6zm3.5 6l8.5 6V6z" Fill="White"
                           Width="8" Height="8" Stretch="Uniform"
