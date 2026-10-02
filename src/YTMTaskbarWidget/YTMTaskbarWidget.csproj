@@ -10,7 +10,7 @@
     <AssemblyName>YTMTaskbarWidget</AssemblyName>
     <RootNamespace>YTMTaskbarWidget</RootNamespace>
     <ApplicationIcon></ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>ytmusic-taskbar-widget</Authors>
     <Description>YouTube Music taskbar widget (SMTC + synced lyrics overlay).</Description>
   </PropertyGroup>
