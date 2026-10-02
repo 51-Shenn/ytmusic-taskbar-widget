@@ -48,18 +48,6 @@ public sealed class SmtcService
     {
         try { return PickSession()?.SourceAppUserModelId; } catch { return null; }
     }
-    public (string Title, string Artist)? CurrentTrack()
-    {
-        try
-        {
-            var s = PickSession();
-            if (s is null) return null;
-            var props = s.TryGetMediaPropertiesAsync().GetAwaiter().GetResult();
-            if (props is null || string.IsNullOrWhiteSpace(props.Title)) return null;
-            return (props.Title, props.Artist ?? string.Empty);
-        }
-        catch { return null; }
-    }
     public Task<bool> TogglePlayPauseAsync() => DoAsync(async s => await s.TryTogglePlayPauseAsync());
     public Task<bool> NextAsync() => DoAsync(async s => await s.TrySkipNextAsync());
     public Task<bool> PreviousAsync() => DoAsync(async s => await s.TrySkipPreviousAsync());
